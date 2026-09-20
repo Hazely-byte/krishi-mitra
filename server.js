@@ -8,6 +8,7 @@ const fs = require('fs');
 const WebSocket = require('ws');
 const rateLimit = require('express-rate-limit');
 const crypto = require('crypto');
+const os = require('os');
 
 // CLI Benchmark Flags Handling
 const args = process.argv.slice(2);
@@ -53,6 +54,7 @@ const sessionRoutes = require('./server/sessions');
 const app = express();
 const server = http.createServer(app);
 const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || '0.0.0.0';
 
 // Body limit 32kb per plan
 app.use(express.json({ limit: '32kb' }));
@@ -660,10 +662,24 @@ wss.on('connection', (clientWs) => {
 });
 
 // Start Server and background sync
-server.listen(PORT, async () => {
+function getTailscaleIPv4() {
+  for (const addrs of Object.values(os.networkInterfaces())) {
+    for (const addr of addrs || []) {
+      const family = addr.family === 4 || addr.family === 'IPv4';
+      if (family && addr.address.startsWith('100.')) return addr.address;
+    }
+  }
+  return null;
+}
+
+server.listen(PORT, HOST, async () => {
+  const tailscaleIp = getTailscaleIPv4();
   console.log('====================================================');
   console.log('🌾 KRISHI MITRA BACKEND & VOICE PROXY SERVER');
   console.log(`👉 App Frontend:    http://localhost:${PORT}/`);
+  if (tailscaleIp) {
+    console.log(`🌐 Tailscale:       http://${tailscaleIp}:${PORT}/`);
+  }
   console.log(`🧪 Lab Sandbox:     http://localhost:${PORT}/lab/`);
   console.log(`⚡ WebSocket Proxy: ws://localhost:${PORT}/live`);
   console.log(`🤖 Text Chat Model: ${chat.activeModelName}`);

@@ -5,6 +5,7 @@
   "main": "test-api-key.js",
   "scripts": {
     "dev": "node server.js",
+    "start:remote": "start-krishi-mitra.bat",
     "sync": "node server/sync-cli.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
