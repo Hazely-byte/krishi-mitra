@@ -1,0 +1,24 @@
+{
+  "name": "api-key-testing",
+  "version": "1.0.0",
+  "description": "",
+  "main": "test-api-key.js",
+  "scripts": {
+    "dev": "node server.js",
+    "sync": "node server/sync-cli.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "better-sqlite3": "^13.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.1",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.7.0",
+    "ws": "^8.21.3"
+  }
+}

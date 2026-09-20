@@ -1,0 +1,12 @@
+.env
+node_modules/
+data/
+*.jsonl
+SIH_backup/
+Krishi_Mitra_Technical_Report.*
+build_report.py
+latency-report.md
+trailing-silence-report*.md
+test-api-key.js
+bench/
+SIH/

@@ -1,0 +1,1243 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gemini Live — Audio-to-Audio Streaming (Hindi)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #10b981;
+      --primary-dark: #059669;
+      --primary-glow: rgba(16, 185, 129, 0.35);
+      --bg: #090d16;
+      --card-bg: #111827;
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+      --border: #1f2937;
+      --recording: #ef4444;
+      --speaking: #3b82f6;
+      --thinking: #a855f7;
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', 'Noto Sans Devanagari', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px;
+      position: relative;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 640px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 4px;
+    }
+
+    .badge-live {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      color: #34d399;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      margin-bottom: 12px;
+      letter-spacing: 0.5px;
+    }
+
+    .badge-live .pulse-dot {
+      width: 8px;
+      height: 8px;
+      background: #10b981;
+      border-radius: 50%;
+      animation: pulseDot 1.5s infinite;
+    }
+
+    @keyframes pulseDot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.8); }
+    }
+
+    h1 {
+      font-size: 26px;
+      font-weight: 800;
+      color: #ffffff;
+      letter-spacing: -0.5px;
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 14px;
+      margin-top: 4px;
+    }
+
+    /* Live Voice Interaction Card */
+    .live-card {
+      background: var(--card-bg);
+      border-radius: 24px;
+      border: 1px solid var(--border);
+      padding: 32px 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+      box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5);
+    }
+
+    /* Giant Central Action Button */
+    .control-btn {
+      width: 130px;
+      height: 130px;
+      border-radius: 50%;
+      border: none;
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      color: white;
+      font-size: 50px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 10px 30px var(--primary-glow);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      user-select: none;
+    }
+
+    .control-btn:hover {
+      transform: scale(1.05);
+      box-shadow: 0 15px 35px var(--primary-glow);
+    }
+
+    .control-btn:active {
+      transform: scale(0.96);
+    }
+
+    .control-btn.active {
+      background: linear-gradient(135deg, #ef4444, #b91c1c);
+      box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+      animation: recordingPulse 1.8s infinite;
+    }
+
+    @keyframes recordingPulse {
+      0% {
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+        transform: scale(1.02);
+      }
+      70% {
+        box-shadow: 0 0 0 26px rgba(239, 68, 68, 0);
+        transform: scale(1.08);
+      }
+      100% {
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+        transform: scale(1.02);
+      }
+    }
+
+    .btn-label {
+      font-size: 17px;
+      font-weight: 700;
+      color: #ffffff;
+      margin-top: 18px;
+    }
+
+    .btn-hint {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* Audio Waves Indicator */
+    .visualizer-container {
+      width: 100%;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      margin: 20px 0 10px;
+    }
+
+    .wave-bar {
+      width: 4px;
+      height: 8px;
+      background: #374151;
+      border-radius: 4px;
+      transition: height 0.08s ease, background 0.2s ease;
+    }
+
+    .visualizer-container.listening .wave-bar {
+      background: #10b981;
+    }
+
+    .visualizer-container.speaking .wave-bar {
+      background: #60a5fa;
+      animation: soundBarWave 0.6s infinite alternate ease-in-out;
+    }
+
+    @keyframes soundBarWave {
+      0% { height: 6px; }
+      100% { height: 38px; }
+    }
+
+    /* Metrics & Stats Row */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      width: 100%;
+    }
+
+    .stat-box {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px 14px;
+      text-align: center;
+    }
+
+    .stat-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .stat-val {
+      font-size: 15px;
+      font-weight: 700;
+      margin-top: 4px;
+      color: #ffffff;
+    }
+
+    /* Logs & Activity Box */
+    .log-box {
+      background: #030712;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      font-family: monospace;
+      font-size: 12px;
+      color: #94a3b8;
+      max-height: 180px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .log-entry {
+      line-height: 1.4;
+      word-break: break-word;
+    }
+
+    .log-entry.gemini { color: #60a5fa; }
+    .log-entry.user { color: #34d399; }
+    .log-entry.thought { color: #c084fc; font-style: italic; }
+    .log-entry.alert { color: #f87171; }
+
+    /* ============================================================
+       FLOATING LATENCY DEBUG HUD (?debug=1)
+       ============================================================ */
+    .debug-hud {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      width: 380px;
+      background: rgba(15, 23, 42, 0.96);
+      border: 1px solid #334155;
+      backdrop-filter: blur(12px);
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+      z-index: 9999;
+      font-size: 12px;
+      display: none;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .hud-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #1e293b;
+      padding-bottom: 8px;
+    }
+
+    .hud-title {
+      font-weight: 800;
+      font-size: 13px;
+      color: #f1f5f9;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .hud-close {
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      cursor: pointer;
+      font-size: 16px;
+    }
+
+    .latency-pill {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      border-radius: 10px;
+      background: #0f172a;
+      border: 1px solid #1e293b;
+    }
+
+    .latency-pill.green {
+      border-color: #10b981;
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+    }
+
+    .latency-pill.yellow {
+      border-color: #f59e0b;
+      background: rgba(245, 158, 11, 0.15);
+      color: #fbbf24;
+    }
+
+    .latency-pill.red {
+      border-color: #ef4444;
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+    }
+
+    .latency-pill .label {
+      font-weight: 600;
+      font-size: 12px;
+    }
+
+    .latency-pill .val {
+      font-size: 18px;
+      font-weight: 800;
+      font-family: monospace;
+    }
+
+    /* Latency Breakdown Table */
+    .breakdown-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .breakdown-table td {
+      padding: 4px 0;
+      color: #cbd5e1;
+    }
+
+    .breakdown-table td.val {
+      text-align: right;
+      font-family: monospace;
+      font-weight: 700;
+      color: #f8fafc;
+    }
+
+    /* Timeline Stacked Bar */
+    .timeline-bar {
+      display: flex;
+      height: 12px;
+      border-radius: 6px;
+      overflow: hidden;
+      background: #1e293b;
+      margin-top: 4px;
+    }
+
+    .t-slice {
+      height: 100%;
+      transition: width 0.3s ease;
+    }
+
+    .t-slice.vad { background: #3b82f6; }
+    .t-slice.think { background: #a855f7; }
+    .t-slice.proxy { background: #10b981; }
+    .t-slice.buffer { background: #06b6d4; }
+
+    .timeline-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      font-size: 10px;
+      color: #94a3b8;
+      margin-top: 4px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .legend-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+
+    /* Configurable Jitter Buffer Control */
+    .jitter-control {
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .jitter-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #94a3b8;
+    }
+
+    .jitter-buttons {
+      display: flex;
+      gap: 6px;
+    }
+
+    .jitter-btn {
+      flex: 1;
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #cbd5e1;
+      padding: 4px 6px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: center;
+    }
+
+    .jitter-btn.active {
+      background: #0284c7;
+      border-color: #38bdf8;
+      color: white;
+    }
+
+    .glitch-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #94a3b8;
+    }
+
+    /* Realtime Thought Streaming Box */
+    .thought-container {
+      border: 1px solid #334155;
+      background: rgba(88, 28, 135, 0.15);
+      border-radius: 10px;
+      padding: 8px 10px;
+    }
+
+    .thought-header {
+      font-size: 11px;
+      font-weight: 700;
+      color: #c084fc;
+      display: flex;
+      justify-content: space-between;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .thought-content {
+      margin-top: 4px;
+      font-size: 11px;
+      color: #e9d5ff;
+      max-height: 80px;
+      overflow-y: auto;
+      line-height: 1.4;
+      font-family: monospace;
+      white-space: pre-wrap;
+    }
+
+    .hud-toggle-btn {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: #1f2937;
+      border: 1px solid #374151;
+      color: #9ca3af;
+      border-radius: 9999px;
+      padding: 8px 16px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      transition: all 0.2s ease;
+    }
+
+    .hud-toggle-btn:hover {
+      background: #374151;
+      color: #fff;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <div class="badge-live">
+        <span class="pulse-dot"></span>
+        <span>BidiGenerateContent · Audio-to-Audio</span>
+      </div>
+      <h1>Gemini Live Voice Assistant (Hindi)</h1>
+      <p class="subtitle">Direct Bidirectional WebSocket Streaming · 16kHz PCM Input → 24kHz Native Audio Output</p>
+    </header>
+
+    <!-- Main Live Interaction Panel -->
+    <div class="live-card">
+      <button class="control-btn" id="live-btn" onclick="toggleLiveSession()" aria-label="Start Live Audio">
+        🎙️
+      </button>
+
+      <div class="btn-label" id="status-label">Tap to Start Live Audio</div>
+      <div class="btn-hint" id="status-hint">Continuous Hindi conversation with interruption support</div>
+
+      <!-- Real-time Audio Level Wave Visualizer -->
+      <div class="visualizer-container" id="visualizer">
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+      </div>
+    </div>
+
+    <!-- Status Stats -->
+    <div class="stats-row">
+      <div class="stat-box">
+        <div class="stat-title">Connection</div>
+        <div class="stat-val" id="stat-conn" style="color: #9ca3af;">Offline</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-title">Native Voice</div>
+        <div class="stat-val" style="color: #60a5fa;">Aoede (Hindi)</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-title">Live State</div>
+        <div class="stat-val" id="stat-state" style="color: #34d399;">Idle</div>
+      </div>
+    </div>
+
+    <!-- Live Event Stream Log -->
+    <div class="log-box" id="log-box">
+      <div class="log-entry">System ready. Click "Tap to Start Live Audio" to begin bidirectional streaming.</div>
+    </div>
+  </div>
+
+  <!-- FLOATING DEBUG HUD -->
+  <div class="debug-hud" id="debug-hud">
+    <div class="hud-header">
+      <div class="hud-title">⚡ Latency Telemetry HUD</div>
+      <button class="hud-close" onclick="toggleHud()">✕</button>
+    </div>
+
+    <div class="latency-pill" id="hud-pill">
+      <div>
+        <div class="label">Total Turnaround</div>
+        <div style="font-size: 10px; color: #64748b;">Speech End → First Audio Audible</div>
+      </div>
+      <div class="val" id="hud-total-val">-- ms</div>
+    </div>
+
+    <!-- Configurable Jitter Buffer Control -->
+    <div class="jitter-control">
+      <div class="jitter-header">
+        <span>Playback Jitter Buffer</span>
+        <span id="hud-queue-depth" style="font-family: monospace;">Queue: 0ms</span>
+      </div>
+      <div class="jitter-buttons">
+        <button class="jitter-btn" id="jb-40" onclick="setJitterBuffer(40)">40ms (Aggressive)</button>
+        <button class="jitter-btn active" id="jb-80" onclick="setJitterBuffer(80)">80ms (Balanced)</button>
+        <button class="jitter-btn" id="jb-160" onclick="setJitterBuffer(160)">160ms (Safe)</button>
+      </div>
+      <div class="glitch-row">
+        <span>Buffer Underrun / Glitch Count:</span>
+        <span id="hud-glitch-count" style="font-family: monospace; color: #f87171; font-weight: 700;">0</span>
+      </div>
+    </div>
+
+    <!-- Timeline Waterfall Bar -->
+    <div>
+      <div style="display: flex; justify-content: space-between; font-size: 11px; color: #94a3b8; margin-bottom: 2px;">
+        <span>Turn Latency Breakdown</span>
+        <span id="hud-chunk-metrics" style="font-family: monospace; font-size: 10px;">Chunk: ~20ms</span>
+      </div>
+      <div class="timeline-bar" id="hud-timeline">
+        <div class="t-slice vad" id="t-vad" style="width: 50%;"></div>
+        <div class="t-slice think" id="t-think" style="width: 35%;"></div>
+        <div class="t-slice proxy" id="t-proxy" style="width: 5%;"></div>
+        <div class="t-slice buffer" id="t-buffer" style="width: 10%;"></div>
+      </div>
+      <div class="timeline-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#3b82f6;"></div> Endpointing (a)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#a855f7;"></div> Model Think (b)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#10b981;"></div> Proxy Net</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#06b6d4;"></div> Buffer</div>
+      </div>
+    </div>
+
+    <!-- Breakdown Table -->
+    <table class="breakdown-table">
+      <tr>
+        <td>1. Endpointing (a) [VAD silence]</td>
+        <td class="val" id="hud-val-vad">-- ms</td>
+      </tr>
+      <tr>
+        <td>2. Thinking / Model Time (b)</td>
+        <td class="val" id="hud-val-think">-- ms</td>
+      </tr>
+      <tr>
+        <td>3. Proxy Overhead</td>
+        <td class="val" id="hud-val-proxy">-- ms</td>
+      </tr>
+      <tr>
+        <td>4. Playback Buffering</td>
+        <td class="val" id="hud-val-buffer">-- ms</td>
+      </tr>
+      <tr style="border-top: 1px solid #334155;">
+        <td style="padding-top: 6px; font-weight: 700; color: #f1f5f9;">Total Turnaround</td>
+        <td class="val" id="hud-val-total" style="padding-top: 6px; color: #34d399;">-- ms</td>
+      </tr>
+    </table>
+
+    <!-- Real-time Streaming Thoughts Box -->
+    <div class="thought-container">
+      <div class="thought-header" onclick="toggleThoughtBox()">
+        <span>🧠 Live Model Thoughts</span>
+        <span id="thought-toggle-icon">▼</span>
+      </div>
+      <div class="thought-content" id="hud-thought-text">Awaiting next turn thoughts...</div>
+    </div>
+
+    <div style="font-size: 10px; color: #64748b; text-align: center;" id="hud-sync-info">
+      Clock Sync: Calibrating (approximate offset)...
+    </div>
+  </div>
+
+  <button class="hud-toggle-btn" id="hud-btn" onclick="toggleHud()">
+    🛠️ Latency HUD
+  </button>
+
+  <script>
+    // ============================================================
+    // GEMINI MULTIMODAL LIVE AUDIO PIPELINE (CLIENT)
+    // ============================================================
+
+    let ws = null;
+    let isLive = false;
+
+    // Audio Input (Capture via AudioWorklet with JS Resampling to 16kHz)
+    let inputAudioContext = null;
+    let mediaStream = null;
+    let audioWorkletNode = null;
+    let micPcmAccumulator = [];
+
+    // Audio Output (24kHz PCM Playback with Configurable Jitter Buffer)
+    let playbackAudioContext = null;
+    let nextPlaybackTime = 0;
+    let activeAudioSources = [];
+    let jitterBufferMs = 80; // Default 80ms balanced jitter buffer
+    let underrunGlitchCount = 0;
+
+    // Telemetry & Timing (performance.now())
+    let clockOffsetMs = 0;
+    let clientRttMs = 0;
+    let isSpeaking = false;
+    let silenceStartTime = 0;
+    let tSpeechStart = 0;
+    let tSpeechEnd = 0;
+    let tLastSpeechChunkSent = 0;
+    let tFirstAudioReceived = 0;
+    let tFirstAudioScheduled = 0;
+    let tPlaybackAudible = 0;
+    let audioChunksInTurn = 0;
+    let thoughtTextCurrent = '';
+
+    const liveBtn = document.getElementById('live-btn');
+    const statusLabel = document.getElementById('status-label');
+    const statusHint = document.getElementById('status-hint');
+    const visualizer = document.getElementById('visualizer');
+    const statConn = document.getElementById('stat-conn');
+    const statState = document.getElementById('stat-state');
+    const logBox = document.getElementById('log-box');
+
+    const debugHud = document.getElementById('debug-hud');
+    const hudPill = document.getElementById('hud-pill');
+    const hudTotalVal = document.getElementById('hud-total-val');
+    const hudValVad = document.getElementById('hud-val-vad');
+    const hudValThink = document.getElementById('hud-val-think');
+    const hudValProxy = document.getElementById('hud-val-proxy');
+    const hudValBuffer = document.getElementById('hud-val-buffer');
+    const hudValTotal = document.getElementById('hud-val-total');
+    const hudThoughtText = document.getElementById('hud-thought-text');
+    const hudQueueDepth = document.getElementById('hud-queue-depth');
+    const hudGlitchCount = document.getElementById('hud-glitch-count');
+    const hudSyncInfo = document.getElementById('hud-sync-info');
+
+    // Auto-display HUD if ?debug=1 in query string
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('debug') === '1') {
+      debugHud.style.display = 'flex';
+    }
+
+    function toggleHud() {
+      debugHud.style.display = debugHud.style.display === 'flex' ? 'none' : 'flex';
+    }
+
+    function toggleThoughtBox() {
+      const box = document.getElementById('hud-thought-text');
+      const icon = document.getElementById('thought-toggle-icon');
+      if (box.style.display === 'none') {
+        box.style.display = 'block';
+        icon.textContent = '▼';
+      } else {
+        box.style.display = 'none';
+        icon.textContent = '▶';
+      }
+    }
+
+    function setJitterBuffer(ms) {
+      jitterBufferMs = ms;
+      document.querySelectorAll('.jitter-btn').forEach(btn => btn.classList.remove('active'));
+      document.getElementById(`jb-${ms}`).classList.add('active');
+      log(`Jitter buffer set to ${ms}ms`, "user");
+    }
+
+    function log(msg, type = '') {
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type}`;
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      logBox.appendChild(entry);
+      logBox.scrollTop = logBox.scrollHeight;
+    }
+
+    // 1. Toggle Live Session
+    async function toggleLiveSession() {
+      if (isLive) {
+        stopLiveSession();
+      } else {
+        await startLiveSession();
+      }
+    }
+
+    // 2. Start Live Session (Connect WS + AudioWorklet + Clock Sync)
+    async function startLiveSession() {
+      try {
+        log("Requesting microphone permission...", "user");
+        
+        // Playback Context (Gemini native 24kHz)
+        playbackAudioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+        if (playbackAudioContext.state === 'suspended') {
+          await playbackAudioContext.resume();
+        }
+        nextPlaybackTime = playbackAudioContext.currentTime;
+
+        // Microphone Stream
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            channelCount: 1,
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
+        });
+
+        // Input Context
+        inputAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+        if (inputAudioContext.state === 'suspended') {
+          await inputAudioContext.resume();
+        }
+
+        // Connect Local WebSocket Proxy
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${wsProtocol}//${window.location.host}/live`;
+        log(`Connecting to WebSocket proxy at ${wsUrl}...`);
+        
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+          log("Connected to proxy. Calibrating clock (10 ping exchanges)...", "user");
+          statConn.textContent = "Syncing";
+          statConn.style.color = "#fbbf24";
+
+          performClockSync(10);
+        };
+
+        ws.onmessage = (event) => {
+          handleServerMessage(event.data);
+        };
+
+        ws.onerror = (err) => {
+          log(`WebSocket Error: ${err.message || 'Connection failed'}`, "alert");
+        };
+
+        ws.onclose = () => {
+          log("WebSocket closed.", "alert");
+          stopLiveSession();
+        };
+
+        // Initialize AudioWorklet mic processor
+        await setupAudioWorkletProcessor();
+
+        isLive = true;
+        liveBtn.classList.add('active');
+        liveBtn.textContent = '⏹️';
+        statusLabel.textContent = "Listening & Talking (लाइव बातचीत जारी)";
+        statusHint.textContent = "Speak in Hindi. Gemini will answer and interrupt automatically.";
+        statState.textContent = "Active";
+
+        setInterval(updateBufferHealth, 150);
+
+      } catch (err) {
+        console.error("Failed to start live session:", err);
+        log(`Microphone Error: ${err.message}`, "alert");
+        stopLiveSession();
+      }
+    }
+
+    // 3. 10 Ping-Pong Clock Synchronization (Approximate Offset)
+    function performClockSync(totalPings = 10) {
+      const offsets = [];
+      const rtts = [];
+      let currentPing = 0;
+
+      function sendPing() {
+        if (currentPing >= totalPings || ws.readyState !== WebSocket.OPEN) {
+          offsets.sort((a, b) => a - b);
+          rtts.sort((a, b) => a - b);
+          clockOffsetMs = offsets[Math.floor(offsets.length / 2)];
+          clientRttMs = rtts[Math.floor(rtts.length / 2)];
+
+          // Explicitly documented as approximate offset
+          hudSyncInfo.textContent = `Sync (Approximate): Offset=${clockOffsetMs.toFixed(1)}ms | RTT=${clientRttMs.toFixed(1)}ms`;
+          log(`Clock synchronized (approximate): Offset=${clockOffsetMs.toFixed(1)}ms, RTT=${clientRttMs.toFixed(1)}ms`, "user");
+
+          ws.send(JSON.stringify({
+            type: 'sync_complete',
+            offsetMs: clockOffsetMs,
+            rttMs: clientRttMs
+          }));
+          return;
+        }
+
+        const tClient = performance.now();
+        ws.send(JSON.stringify({
+          type: 'sync_ping',
+          id: currentPing,
+          tClient
+        }));
+      }
+
+      window.handleSyncPong = (pong) => {
+        const tRecv = performance.now();
+        const rtt = tRecv - pong.tClient;
+        const offset = (pong.tServer + rtt / 2) - tRecv;
+        rtts.push(rtt);
+        offsets.push(offset);
+        currentPing++;
+        setTimeout(sendPing, 30);
+      };
+
+      sendPing();
+    }
+
+    function updateBufferHealth() {
+      if (!playbackAudioContext || !isLive) return;
+      const curTime = playbackAudioContext.currentTime;
+      const queueDepth = Math.max(0, Math.round((nextPlaybackTime - curTime) * 1000));
+      hudQueueDepth.textContent = `Queue: ${queueDepth}ms (${audioChunksInTurn} chunks)`;
+
+      // Check for buffer underrun/glitch during active playback
+      if (activeAudioSources.length > 0 && curTime > nextPlaybackTime) {
+        underrunGlitchCount++;
+        hudGlitchCount.textContent = underrunGlitchCount;
+      }
+    }
+
+    // 4. AudioWorklet Microphone Capture with 20ms JS Resampling to 16kHz
+    async function setupAudioWorkletProcessor() {
+      await inputAudioContext.audioWorklet.addModule('audio-processor.js');
+      const micSource = inputAudioContext.createMediaStreamSource(mediaStream);
+      audioWorkletNode = new AudioWorkletNode(inputAudioContext, 'audio-input-processor');
+
+      const waveBars = visualizer.querySelectorAll('.wave-bar');
+      const TARGET_SAMPLE_RATE = 16000;
+      const CHUNK_DURATION_SEC = 0.02; // 20ms target chunk duration
+      const TARGET_CHUNK_SAMPLES = Math.round(TARGET_SAMPLE_RATE * CHUNK_DURATION_SEC); // 320 samples
+
+      audioWorkletNode.port.onmessage = (event) => {
+        if (!isLive || ws.readyState !== WebSocket.OPEN) return;
+
+        const { audioData, capturedAt } = event.data;
+
+        // Energy VAD calculation
+        let sumSquares = 0;
+        for (let i = 0; i < audioData.length; i++) {
+          sumSquares += audioData[i] * audioData[i];
+        }
+        const rms = Math.sqrt(sumSquares / audioData.length);
+
+        // Visualizer amplitude
+        const barHeight = Math.min(42, Math.max(6, Math.round(rms * 280)));
+        waveBars.forEach((bar, idx) => {
+          bar.style.height = `${Math.max(6, barHeight + (Math.sin(idx + Date.now()/100) * 4))}px`;
+        });
+
+        // Downsample input data to 16kHz
+        const downsampled = downsampleFloat32(audioData, inputAudioContext.sampleRate, TARGET_SAMPLE_RATE);
+        for (let i = 0; i < downsampled.length; i++) {
+          micPcmAccumulator.push(downsampled[i]);
+        }
+
+        const now = performance.now();
+        const SPEECH_THRESHOLD = 0.012;
+
+        if (rms > SPEECH_THRESHOLD) {
+          silenceStartTime = 0;
+          if (!isSpeaking) {
+            isSpeaking = true;
+            tSpeechStart = now;
+            tFirstAudioReceived = 0;
+            tFirstAudioScheduled = 0;
+            tPlaybackAudible = 0;
+            audioChunksInTurn = 0;
+            thoughtTextCurrent = '';
+            hudThoughtText.textContent = 'Listening...';
+
+            ws.send(JSON.stringify({
+              type: 'speech_event',
+              event: 'speech_start',
+              tSpeechStart
+            }));
+          }
+        } else if (isSpeaking) {
+          if (silenceStartTime === 0) {
+            silenceStartTime = now;
+          } else if (now - silenceStartTime >= 400) {
+            isSpeaking = false;
+            tSpeechEnd = silenceStartTime;
+            tLastSpeechChunkSent = now;
+
+            ws.send(JSON.stringify({
+              type: 'speech_event',
+              event: 'speech_end',
+              tSpeechStart,
+              tSpeechEnd,
+              tLastSpeechChunkSent
+            }));
+          }
+        }
+
+        // Flush 20ms chunks (320 samples)
+        while (micPcmAccumulator.length >= TARGET_CHUNK_SAMPLES) {
+          const chunkSamples = micPcmAccumulator.splice(0, TARGET_CHUNK_SAMPLES);
+          const pcm16 = new Int16Array(chunkSamples.length);
+          for (let i = 0; i < chunkSamples.length; i++) {
+            const s = Math.max(-1, Math.min(1, chunkSamples[i]));
+            pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+          }
+
+          const b64 = arrayBufferToBase64(pcm16.buffer);
+          ws.send(JSON.stringify({
+            realtimeInput: {
+              audio: {
+                mimeType: "audio/pcm;rate=16000",
+                data: b64
+              }
+            }
+          }));
+        }
+      };
+
+      micSource.connect(audioWorkletNode);
+    }
+
+    function downsampleFloat32(buffer, inRate, outRate) {
+      if (inRate === outRate) return buffer;
+      const ratio = inRate / outRate;
+      const newLen = Math.round(buffer.length / ratio);
+      const res = new Float32Array(newLen);
+      let offsetResult = 0;
+      let offsetBuffer = 0;
+
+      while (offsetResult < res.length) {
+        const nextOffset = Math.round((offsetResult + 1) * ratio);
+        let sum = 0, count = 0;
+        for (let i = offsetBuffer; i < nextOffset && i < buffer.length; i++) {
+          sum += buffer[i];
+          count++;
+        }
+        res[offsetResult] = count > 0 ? sum / count : 0;
+        offsetResult++;
+        offsetBuffer = nextOffset;
+      }
+      return res;
+    }
+
+    function arrayBufferToBase64(buffer) {
+      let binary = '';
+      const bytes = new Uint8Array(buffer);
+      for (let i = 0; i < bytes.byteLength; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      return window.btoa(binary);
+    }
+
+    // 5. Handle Server Messages
+    function handleServerMessage(messageData) {
+      try {
+        const payload = JSON.parse(messageData);
+
+        if (payload.type === 'sync_pong' && window.handleSyncPong) {
+          window.handleSyncPong(payload);
+          return;
+        }
+
+        if (payload.type === 'setupComplete') {
+          log("Gemini Live Ready! Listening...", "user");
+          statConn.textContent = "Online";
+          statConn.style.color = "#34d399";
+          visualizer.classList.add('listening');
+          return;
+        }
+
+        if (payload.type === 'interrupted') {
+          log("⚡ User interruption -> Playback cancelled", "alert");
+          cancelQueuedAudio();
+          return;
+        }
+
+        if (payload.type === 'thought') {
+          thoughtTextCurrent += payload.text;
+          hudThoughtText.textContent = thoughtTextCurrent;
+          hudThoughtText.scrollTop = hudThoughtText.scrollHeight;
+          return;
+        }
+
+        if (payload.type === 'audio' && payload.data) {
+          const now = performance.now();
+          if (!tFirstAudioReceived) {
+            tFirstAudioReceived = now;
+          }
+          audioChunksInTurn++;
+          queueAudioChunk(payload.data);
+        }
+
+        if (payload.type === 'transcript') {
+          log(`Gemini (Spoken): ${payload.text}`, "gemini");
+        }
+
+        if (payload.type === 'turnComplete') {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+              type: 'client_turn_metrics',
+              tSpeechStart,
+              tSpeechEnd: tSpeechEnd > 0 ? tSpeechEnd : tLastSpeechChunkSent,
+              tLastSpeechChunkSent,
+              tFirstAudioReceived,
+              tFirstAudioScheduled,
+              tPlaybackAudible
+            }));
+          }
+        }
+
+        if (payload.type === 'turn_summary' && payload.metrics) {
+          updateHudWithMetrics(payload.metrics);
+        }
+
+      } catch (err) {
+        console.error("Error parsing message from server:", err);
+      }
+    }
+
+    // 6. Seamless 24kHz PCM Playback Scheduler with Configurable Jitter Buffer
+    function queueAudioChunk(base64Pcm24k) {
+      visualizer.classList.remove('listening');
+      visualizer.classList.add('speaking');
+      statState.textContent = "Gemini Speaking";
+      statState.style.color = "#60a5fa";
+
+      const binaryString = window.atob(base64Pcm24k);
+      const len = binaryString.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+
+      const pcm16 = new Int16Array(bytes.buffer);
+      const float32 = new Float32Array(pcm16.length);
+      for (let i = 0; i < pcm16.length; i++) {
+        float32[i] = pcm16[i] / 32768.0;
+      }
+
+      const audioBuffer = playbackAudioContext.createBuffer(1, float32.length, 24000);
+      audioBuffer.copyToChannel(float32, 0);
+
+      const source = playbackAudioContext.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(playbackAudioContext.destination);
+
+      const currentTime = playbackAudioContext.currentTime;
+      const jitterMarginSec = jitterBufferMs / 1000.0;
+
+      if (nextPlaybackTime < currentTime) {
+        nextPlaybackTime = currentTime + jitterMarginSec;
+      }
+
+      const now = performance.now();
+      if (!tFirstAudioScheduled) {
+        tFirstAudioScheduled = now;
+        const delayUntilPlaySec = Math.max(0, nextPlaybackTime - currentTime);
+        const hardwareLatencySec = playbackAudioContext.outputLatency || 0.02;
+        tPlaybackAudible = now + (delayUntilPlaySec + hardwareLatencySec) * 1000;
+      }
+
+      source.start(nextPlaybackTime);
+      nextPlaybackTime += audioBuffer.duration;
+      activeAudioSources.push(source);
+
+      source.onended = () => {
+        const idx = activeAudioSources.indexOf(source);
+        if (idx !== -1) activeAudioSources.splice(idx, 1);
+
+        if (activeAudioSources.length === 0 && nextPlaybackTime <= playbackAudioContext.currentTime) {
+          visualizer.classList.remove('speaking');
+          visualizer.classList.add('listening');
+          statState.textContent = "Listening";
+          statState.style.color = "#34d399";
+        }
+      };
+    }
+
+    function cancelQueuedAudio() {
+      activeAudioSources.forEach(source => {
+        try { source.stop(); } catch (e) {}
+      });
+      activeAudioSources = [];
+      if (playbackAudioContext) {
+        nextPlaybackTime = playbackAudioContext.currentTime;
+      }
+      visualizer.classList.remove('speaking');
+      visualizer.classList.add('listening');
+      statState.textContent = "Listening";
+      statState.style.color = "#34d399";
+    }
+
+    // 7. Update Floating HUD
+    function updateHudWithMetrics(m) {
+      hudValVad.textContent = `${m.endpointingDelay || m.endpointingA || 0} ms`;
+      hudValThink.textContent = `${m.thinkingTime || m.endpointingB || 0} ms`;
+      hudValProxy.textContent = `${m.proxyOverhead || 4} ms`;
+      hudValBuffer.textContent = `${m.playbackBuffering || 25} ms`;
+      hudValTotal.textContent = `${m.totalLatency} ms`;
+      hudTotalVal.textContent = `${m.totalLatency} ms`;
+
+      hudPill.classList.remove('green', 'yellow', 'red');
+      if (m.totalLatency < 1200) {
+        hudPill.classList.add('green');
+        hudValTotal.style.color = '#34d399';
+      } else if (m.totalLatency <= 2000) {
+        hudPill.classList.add('yellow');
+        hudValTotal.style.color = '#fbbf24';
+      } else {
+        hudPill.classList.add('red');
+        hudValTotal.style.color = '#f87171';
+      }
+
+      const total = m.totalLatency || 1;
+      const vadVal = m.endpointingDelay || m.endpointingA || 0;
+      const thinkVal = m.thinkingTime || m.endpointingB || 0;
+      const pVad = Math.max(2, Math.round((vadVal / total) * 100));
+      const pThink = Math.max(2, Math.round((thinkVal / total) * 100));
+      const pProxy = Math.max(1, Math.round((4 / total) * 100));
+      const pBuffer = Math.max(2, 100 - (pVad + pThink + pProxy));
+
+      document.getElementById('t-vad').style.width = `${pVad}%`;
+      document.getElementById('t-think').style.width = `${pThink}%`;
+      document.getElementById('t-proxy').style.width = `${pProxy}%`;
+      document.getElementById('t-buffer').style.width = `${pBuffer}%`;
+    }
+
+    // 8. Stop Live Session
+    function stopLiveSession() {
+      isLive = false;
+      cancelQueuedAudio();
+
+      if (audioWorkletNode) {
+        audioWorkletNode.disconnect();
+        audioWorkletNode = null;
+      }
+      if (mediaStream) {
+        mediaStream.getTracks().forEach(t => t.stop());
+        mediaStream = null;
+      }
+      if (inputAudioContext) {
+        inputAudioContext.close();
+        inputAudioContext = null;
+      }
+      if (playbackAudioContext) {
+        playbackAudioContext.close();
+        playbackAudioContext = null;
+      }
+      if (ws) {
+        ws.close();
+        ws = null;
+      }
+
+      liveBtn.classList.remove('active');
+      liveBtn.textContent = '🎙️';
+      statusLabel.textContent = "Tap to Start Live Audio";
+      statusHint.textContent = "Continuous Hindi conversation with interruption support";
+      visualizer.classList.remove('listening', 'speaking');
+      visualizer.querySelectorAll('.wave-bar').forEach(b => b.style.height = '8px');
+      statConn.textContent = "Offline";
+      statConn.style.color = "#9ca3af";
+      statState.textContent = "Idle";
+      statState.style.color = "#34d399";
+
+      log("Live session stopped.", "alert");
+    }
+  </script>
+</body>
+</html>
