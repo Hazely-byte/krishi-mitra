@@ -2,6 +2,32 @@
 
 const db = require('./db');
 
+const STATE_NAMES = {
+  'Chattisgarh': 'Chhattisgarh / छत्तीसगढ़',
+  'Chhattisgarh': 'Chhattisgarh / छत्तीसगढ़',
+  'Madhya Pradesh': 'Madhya Pradesh / मध्य प्रदेश',
+  'Maharashtra': 'Maharashtra / महाराष्ट्र',
+  'Odisha': 'Odisha / ओडिशा',
+  'Jharkhand': 'Jharkhand / झारखंड',
+  'Uttar Pradesh': 'Uttar Pradesh / उत्तर प्रदेश',
+  'Telangana': 'Telangana / तेलंगाना',
+  'Andhra Pradesh': 'Andhra Pradesh / आंध्र प्रदेश',
+  'Rajasthan': 'Rajasthan / राजस्थान',
+  'Gujarat': 'Gujarat / गुजरात',
+  'Punjab': 'Punjab / पंजाब',
+  'Haryana': 'Haryana / हरियाणा',
+  'Karnataka': 'Karnataka / कर्नाटक',
+  'Tamil Nadu': 'Tamil Nadu / तमिलनाडु',
+  'West Bengal': 'West Bengal / पश्चिम बंगाल',
+  'Bihar': 'Bihar / बिहार'
+};
+
+function getStateDisplay(state) {
+  if (!state) return '';
+  const s = state.trim();
+  return STATE_NAMES[s] || `${s} / ${s}`;
+}
+
 const toolDeclarations = [
   {
     name: 'get_mandi_prices',
@@ -143,18 +169,21 @@ async function executeTool(name, args = {}) {
         scope_note: scope === 'raipur'
           ? 'Data is from Raipur district mandi.'
           : scope === 'chhattisgarh'
-            ? 'Raipur has no data today. Nearest reported price is from other Chhattisgarh mandi.'
-            : 'Raipur/Chhattisgarh have no data today. Nearest reported price is from neighboring state.',
+            ? 'Raipur has no data today. Reported price is from another mandi in Chhattisgarh, not Raipur.'
+            : 'Prices come from other states, possibly far from Raipur, and are not Raipur prices.',
         count: records.length,
         records: records.map(r => ({
           market: r.market,
           district: r.district,
           state: r.state,
+          state_display: getStateDisplay(r.state),
           variety: r.variety,
           arrival_date: r.arrival_date,
+          price_date: r.arrival_date,
           min_price_quintal: r.min_price,
           max_price_quintal: r.max_price,
           modal_price_quintal: r.modal_price,
+          modal_price: r.modal_price,
           scope: r.scope
         }))
       };
@@ -197,22 +226,33 @@ async function executeTool(name, args = {}) {
 
       const days = Math.min(30, Math.max(1, parseInt(args.days, 10) || 7));
       const history = db.getPriceHistoryScoped(targetApiName, days);
+      const distinctDates = [...new Set(history.records.map(r => r.arrival_date || r.date))];
 
       return {
         commodity: targetApiName,
         days_requested: days,
+        days_available: distinctDates.length,
         scope: history.scope,
-        is_short_history: history.records.length < 2,
-        history_note: history.records.length < 2
-          ? 'Only 1 date of records exists in database. Daily price history will accumulate with subsequent daily syncs.'
-          : `Found ${history.records.length} historical price record(s).`,
+        scope_note: history.scope === 'raipur'
+          ? 'Data is from Raipur district mandi.'
+          : history.scope === 'chhattisgarh'
+            ? 'Raipur has no data today. Reported price is from another mandi in Chhattisgarh, not Raipur.'
+            : 'Prices come from other states, possibly far from Raipur, and are not Raipur prices.',
+        is_short_history: distinctDates.length < 2,
+        history_note: `Historical records are currently limited to ${distinctDates.length} day(s) of data in the database (daily history accumulates with ongoing syncs).`,
         count: history.records.length,
         records: history.records.map(r => ({
-          date: r.arrival_date,
           market: r.market,
           district: r.district,
           state: r.state,
-          modal_price: r.modal_price
+          state_display: getStateDisplay(r.state),
+          variety: r.variety,
+          arrival_date: r.arrival_date,
+          price_date: r.arrival_date,
+          date: r.arrival_date,
+          modal_price_quintal: r.modal_price,
+          modal_price: r.modal_price,
+          scope: r.scope
         }))
       };
     }
@@ -249,12 +289,22 @@ async function executeTool(name, args = {}) {
         best_market: records[0].market,
         best_modal_price: records[0].modal_price,
         date: records[0].arrival_date,
+        price_date: records[0].arrival_date,
         scope: records[0].scope,
+        scope_note: records[0].scope === 'raipur'
+          ? 'Data is from Raipur district mandi.'
+          : records[0].scope === 'chhattisgarh'
+            ? 'Raipur has no data today. Reported price is from another mandi in Chhattisgarh, not Raipur.'
+            : 'Prices come from other states, possibly far from Raipur, and are not Raipur prices.',
         comparison: records.map(r => ({
           market: r.market,
           district: r.district,
           state: r.state,
+          state_display: getStateDisplay(r.state),
           variety: r.variety,
+          arrival_date: r.arrival_date,
+          price_date: r.arrival_date,
+          modal_price_quintal: r.modal_price,
           modal_price: r.modal_price,
           scope: r.scope
         }))
@@ -279,5 +329,6 @@ async function executeTool(name, args = {}) {
 
 module.exports = {
   toolDeclarations,
-  executeTool
+  executeTool,
+  getStateDisplay
 };

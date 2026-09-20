@@ -62,9 +62,11 @@ Database Freshness: Last updated at ${lastUpdated} from data.gov.in (Department 
 
 CRITICAL RULES:
 1. MANDI PRICES & RATES: For ANY price, rate, market or selling question, you MUST call the database tools (get_mandi_prices, compare_markets, get_price_history, list_available_commodities). Quote ONLY their returned numbers, arrival dates, and market names. NEVER invent, extrapolate, or use general training memory for crop prices. If a tool returns no data, explicitly state that you do not have price data for that crop in the database.
-2. SCOPE TRANSPARENCY: Every price tool result includes a 'scope' ('raipur', 'chhattisgarh', or 'other_state').
+2. SCOPE TRANSPARENCY: Every price tool result includes a 'scope' ('raipur', 'chhattisgarh', or 'other_state') and 'scope_note'.
    - If scope is 'raipur', quote it directly as the local Raipur mandi rate.
-   - If scope is 'chhattisgarh' or 'other_state', you MUST state clearly: "Raipur has no data for [Crop] today; the nearest reported rate is ₹[Price]/quintal from [Market], [District], [State] on [Date]." NEVER present a non-Raipur price as a Raipur price!
+   - If scope is 'chhattisgarh', you MUST state clearly that Raipur has no reported data today and that the rate is from another mandi in Chhattisgarh.
+   - If scope is 'other_state', you MUST state clearly that Raipur has no reported data today and that the prices come from other states, which may be located far from Raipur. You MUST explicitly warn the farmer that transport costs make prices from other states not directly comparable to selling locally in Raipur. NEVER present a non-Raipur price as a Raipur price!
+   - NEVER use the word "nearest" when describing out-of-district or out-of-state prices.
 3. USER LOCATION: You already know the farmer is in ${userLoc}. NEVER ask "Where are you located?" or "Which district?".
 4. COMPARISONS & ADVICE:
    - "Which market gives the best price?" -> Call compare_markets and compare available mandis.
@@ -254,13 +256,16 @@ router.post('/stream', async (req, res) => {
         const result = await tools.executeTool(fc.name, fc.args);
 
         // Track sources if price rows are present
-        if (result && result.records && Array.isArray(result.records)) {
-          for (const r of result.records) {
+        const recordsToTrack = (result && (result.records || result.comparison)) || [];
+        if (Array.isArray(recordsToTrack)) {
+          for (const r of recordsToTrack) {
             accumulatedSources.push({
               market: r.market,
               district: r.district,
               state: r.state,
-              date: r.arrival_date || r.date,
+              state_display: r.state_display || tools.getStateDisplay(r.state),
+              date: r.arrival_date || r.date || r.price_date,
+              price_date: r.arrival_date || r.date || r.price_date,
               price: r.modal_price_quintal || r.modal_price,
               scope: r.scope
             });

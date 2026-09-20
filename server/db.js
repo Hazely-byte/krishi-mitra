@@ -31,7 +31,7 @@ function initSchema(db) {
       min_price REAL,
       max_price REAL,
       modal_price REAL,
-      fetched_at TEXT NOT NULL DEFAULT (datetime('now')),
+      fetched_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
       UNIQUE(state, district, market, commodity, variety, grade, arrival_date)
     );
 
@@ -73,8 +73,8 @@ function initSchema(db) {
       mode TEXT NOT NULL CHECK(mode IN ('chat','voice')),
       title TEXT DEFAULT '',
       language TEXT DEFAULT 'hi',
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
     );
 
     CREATE INDEX IF NOT EXISTS idx_sessions_client
@@ -86,7 +86,7 @@ function initSchema(db) {
       role TEXT NOT NULL,
       content TEXT NOT NULL,
       sources_json TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
     );
 
     CREATE INDEX IF NOT EXISTS idx_messages_session
@@ -104,6 +104,31 @@ function initSchema(db) {
     }
   } catch (e) {
     // Ignore if already migrated
+  }
+
+  // Normalize all existing timestamps in DB to ISO-8601 UTC with trailing 'Z'
+  try {
+    db.exec(`
+      UPDATE sync_log SET finished_at = REPLACE(finished_at, ' ', 'T') || 'Z'
+      WHERE finished_at IS NOT NULL AND finished_at NOT LIKE '%Z';
+
+      UPDATE sync_log SET started_at = REPLACE(started_at, ' ', 'T') || 'Z'
+      WHERE started_at IS NOT NULL AND started_at NOT LIKE '%Z';
+
+      UPDATE mandi_prices SET fetched_at = REPLACE(fetched_at, ' ', 'T') || 'Z'
+      WHERE fetched_at IS NOT NULL AND fetched_at NOT LIKE '%Z';
+
+      UPDATE sessions SET created_at = REPLACE(created_at, ' ', 'T') || 'Z'
+      WHERE created_at IS NOT NULL AND created_at NOT LIKE '%Z';
+
+      UPDATE sessions SET updated_at = REPLACE(updated_at, ' ', 'T') || 'Z'
+      WHERE updated_at IS NOT NULL AND updated_at NOT LIKE '%Z';
+
+      UPDATE messages SET created_at = REPLACE(created_at, ' ', 'T') || 'Z'
+      WHERE created_at IS NOT NULL AND created_at NOT LIKE '%Z';
+    `);
+  } catch (e) {
+    // Ignore normalization errors
   }
 }
 
@@ -123,13 +148,13 @@ function upsertPriceMany(rows) {
   const db = getDb();
   const upsert = stmt(db, 'upsertPrice', `
     INSERT INTO mandi_prices (state, district, market, commodity, variety, grade, arrival_date, min_price, max_price, modal_price, fetched_at)
-    VALUES (@state, @district, @market, @commodity, @variety, @grade, @arrival_date, @min_price, @max_price, @modal_price, datetime('now'))
+    VALUES (@state, @district, @market, @commodity, @variety, @grade, @arrival_date, @min_price, @max_price, @modal_price, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
     ON CONFLICT(state, district, market, commodity, variety, grade, arrival_date)
     DO UPDATE SET
       min_price = excluded.min_price,
       max_price = excluded.max_price,
       modal_price = excluded.modal_price,
-      fetched_at = datetime('now')
+      fetched_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
   `);
   const tx = db.transaction((rows) => {
     let upserted = 0;
@@ -213,6 +238,8 @@ function getLatestPrices({ district = 'Raipur', query = '', category = '' } = {}
 function getMandiPricesScoped(commodityApiName, marketFilter = null) {
   const db = getDb();
   
+  const isDistrictFilter = marketFilter && (marketFilter.toLowerCase() === 'raipur' || marketFilter.toLowerCase() === 'all');
+
   // 1. Try Raipur district first
   let queryRaipur = `
     WITH latest AS (
@@ -227,9 +254,10 @@ function getMandiPricesScoped(commodityApiName, marketFilter = null) {
     WHERE mp.commodity = @commodity AND mp.district = 'Raipur'
   `;
   const paramsRaipur = { commodity: commodityApiName };
-  if (marketFilter) {
-    queryRaipur += ` AND LOWER(mp.market) LIKE '%' || @market || '%'`;
-    paramsRaipur.market = marketFilter.toLowerCase();
+  if (marketFilter && !isDistrictFilter) {
+    const specificRaipur = db.prepare(queryRaipur + ` AND LOWER(mp.market) LIKE '%' || @market || '%' ORDER BY mp.modal_price DESC`)
+      .all({ ...paramsRaipur, market: marketFilter.toLowerCase() });
+    if (specificRaipur.length > 0) return specificRaipur;
   }
   queryRaipur += ` ORDER BY mp.modal_price DESC`;
   const raipurResults = db.prepare(queryRaipur).all(paramsRaipur);
@@ -240,60 +268,61 @@ function getMandiPricesScoped(commodityApiName, marketFilter = null) {
     WITH latest AS (
       SELECT MAX(arrival_date) AS max_date
       FROM mandi_prices
-      WHERE commodity = @commodity AND state = 'Chattisgarh'
+      WHERE commodity = @commodity AND state IN ('Chattisgarh', 'Chhattisgarh')
     )
     SELECT mp.*, c.name_en, c.name_hi, c.category, 'chhattisgarh' AS scope
     FROM mandi_prices mp
     JOIN latest l ON mp.arrival_date = l.max_date
     LEFT JOIN commodities c ON mp.commodity = c.name_api
-    WHERE mp.commodity = @commodity AND mp.state = 'Chattisgarh'
+    WHERE mp.commodity = @commodity AND mp.state IN ('Chattisgarh', 'Chhattisgarh')
   `;
   const paramsCG = { commodity: commodityApiName };
-  if (marketFilter) {
-    queryCG += ` AND LOWER(mp.market) LIKE '%' || @market || '%'`;
-    paramsCG.market = marketFilter.toLowerCase();
+  if (marketFilter && !isDistrictFilter) {
+    const specificCG = db.prepare(queryCG + ` AND LOWER(mp.market) LIKE '%' || @market || '%' ORDER BY mp.modal_price DESC LIMIT 5`)
+      .all({ ...paramsCG, market: marketFilter.toLowerCase() });
+    if (specificCG.length > 0) return specificCG;
   }
   queryCG += ` ORDER BY mp.modal_price DESC LIMIT 5`;
   const cgResults = db.prepare(queryCG).all(paramsCG);
   if (cgResults.length > 0) return cgResults;
 
-  // 3. Try neighboring states
-  const NEIGHBOR_STATES = [
-    'Madhya Pradesh', 'Maharashtra', 'Odisha', 'Jharkhand',
-    'Uttar Pradesh', 'Telangana', 'Andhra Pradesh'
-  ];
-  const placeholders = NEIGHBOR_STATES.map(() => '?').join(',');
-  const queryNeighbors = `
+  // 3. Other states ordered by fixed neighbor list:
+  // Madhya Pradesh, Maharashtra, Odisha, Jharkhand, Uttar Pradesh, Telangana, Andhra Pradesh, then all others; within each state by highest modal price
+  let queryOther = `
     WITH latest AS (
-      SELECT MAX(arrival_date) AS max_date
+      SELECT state, district, market, MAX(arrival_date) AS max_date
       FROM mandi_prices
-      WHERE commodity = ? AND state IN (${placeholders})
+      WHERE commodity = @commodity AND state NOT IN ('Chattisgarh', 'Chhattisgarh')
+      GROUP BY state, district, market
     )
     SELECT mp.*, c.name_en, c.name_hi, c.category, 'other_state' AS scope
     FROM mandi_prices mp
-    JOIN latest l ON mp.arrival_date = l.max_date
+    JOIN latest l ON mp.state = l.state AND mp.district = l.district AND mp.market = l.market AND mp.arrival_date = l.max_date
     LEFT JOIN commodities c ON mp.commodity = c.name_api
-    WHERE mp.commodity = ? AND mp.state IN (${placeholders})
-    ORDER BY mp.modal_price DESC LIMIT 5
+    WHERE mp.commodity = @commodity AND mp.state NOT IN ('Chattisgarh', 'Chhattisgarh')
   `;
-  const neighborResults = db.prepare(queryNeighbors).all(commodityApiName, ...NEIGHBOR_STATES, commodityApiName, ...NEIGHBOR_STATES);
-  if (neighborResults.length > 0) return neighborResults;
-
-  // 4. Any state anywhere
-  const queryAny = `
-    WITH latest AS (
-      SELECT MAX(arrival_date) AS max_date
-      FROM mandi_prices
-      WHERE commodity = @commodity
-    )
-    SELECT mp.*, c.name_en, c.name_hi, c.category, 'other_state' AS scope
-    FROM mandi_prices mp
-    JOIN latest l ON mp.arrival_date = l.max_date
-    LEFT JOIN commodities c ON mp.commodity = c.name_api
-    WHERE mp.commodity = @commodity
-    ORDER BY mp.modal_price DESC LIMIT 5
+  const paramsOther = { commodity: commodityApiName };
+  const orderOther = `
+    ORDER BY
+      CASE mp.state
+        WHEN 'Madhya Pradesh' THEN 1
+        WHEN 'Maharashtra' THEN 2
+        WHEN 'Odisha' THEN 3
+        WHEN 'Jharkhand' THEN 4
+        WHEN 'Uttar Pradesh' THEN 5
+        WHEN 'Telangana' THEN 6
+        WHEN 'Andhra Pradesh' THEN 7
+        ELSE 8
+      END ASC,
+      mp.modal_price DESC
+    LIMIT 10
   `;
-  return db.prepare(queryAny).all({ commodity: commodityApiName });
+  if (marketFilter && !isDistrictFilter) {
+    const specificOther = db.prepare(queryOther + ` AND LOWER(mp.market) LIKE '%' || @market || '%'` + orderOther)
+      .all({ ...paramsOther, market: marketFilter.toLowerCase() });
+    if (specificOther.length > 0) return specificOther;
+  }
+  return db.prepare(queryOther + orderOther).all(paramsOther);
 }
 
 /**
@@ -321,34 +350,42 @@ function compareMarketsScoped(commodityApiName) {
     WITH latest AS (
       SELECT MAX(arrival_date) AS max_date
       FROM mandi_prices
-      WHERE commodity = @commodity AND state = 'Chattisgarh'
+      WHERE commodity = @commodity AND state IN ('Chattisgarh', 'Chhattisgarh')
     )
     SELECT mp.market, mp.district, mp.state, mp.variety, mp.min_price, mp.max_price, mp.modal_price, mp.arrival_date,
       CASE WHEN mp.district = 'Raipur' THEN 'raipur' ELSE 'chhattisgarh' END AS scope
     FROM mandi_prices mp, latest l
-    WHERE mp.commodity = @commodity AND mp.state = 'Chattisgarh' AND mp.arrival_date = l.max_date
+    WHERE mp.commodity = @commodity AND mp.state IN ('Chattisgarh', 'Chhattisgarh') AND mp.arrival_date = l.max_date
     ORDER BY mp.modal_price DESC LIMIT 10
   `).all({ commodity: commodityApiName });
 
   if (cg.length > 0) return cg;
 
-  // Otherwise compare across neighboring states
-  const NEIGHBOR_STATES = [
-    'Madhya Pradesh', 'Maharashtra', 'Odisha', 'Jharkhand',
-    'Uttar Pradesh', 'Telangana', 'Andhra Pradesh'
-  ];
-  const placeholders = NEIGHBOR_STATES.map(() => '?').join(',');
+  // Otherwise compare across other states ordered by fixed neighbor list
   return db.prepare(`
     WITH latest AS (
-      SELECT MAX(arrival_date) AS max_date
+      SELECT state, district, market, MAX(arrival_date) AS max_date
       FROM mandi_prices
-      WHERE commodity = ? AND state IN (${placeholders})
+      WHERE commodity = @commodity AND state NOT IN ('Chattisgarh', 'Chhattisgarh')
+      GROUP BY state, district, market
     )
     SELECT mp.market, mp.district, mp.state, mp.variety, mp.min_price, mp.max_price, mp.modal_price, mp.arrival_date, 'other_state' AS scope
     FROM mandi_prices mp, latest l
-    WHERE mp.commodity = ? AND mp.state IN (${placeholders}) AND mp.arrival_date = l.max_date
-    ORDER BY mp.modal_price DESC LIMIT 10
-  `).all(commodityApiName, ...NEIGHBOR_STATES, commodityApiName, ...NEIGHBOR_STATES);
+    WHERE mp.commodity = @commodity AND mp.state NOT IN ('Chattisgarh', 'Chhattisgarh') AND mp.arrival_date = l.max_date
+    ORDER BY
+      CASE mp.state
+        WHEN 'Madhya Pradesh' THEN 1
+        WHEN 'Maharashtra' THEN 2
+        WHEN 'Odisha' THEN 3
+        WHEN 'Jharkhand' THEN 4
+        WHEN 'Uttar Pradesh' THEN 5
+        WHEN 'Telangana' THEN 6
+        WHEN 'Andhra Pradesh' THEN 7
+        ELSE 8
+      END ASC,
+      mp.modal_price DESC
+    LIMIT 10
+  `).all({ commodity: commodityApiName });
 }
 
 /**
@@ -356,14 +393,16 @@ function compareMarketsScoped(commodityApiName) {
  */
 function getPriceHistoryScoped(commodityApiName, days = 30) {
   const db = getDb();
+  const dateSort = `SUBSTR(arrival_date, 7, 4) || '-' || SUBSTR(arrival_date, 4, 2) || '-' || SUBSTR(arrival_date, 1, 2)`;
+
   // Try Raipur first
   const raipur = db.prepare(`
     SELECT arrival_date, market, district, state, variety, min_price, max_price, modal_price, 'raipur' AS scope
     FROM mandi_prices
     WHERE commodity = @commodity AND district = 'Raipur'
-      AND arrival_date >= date('now', '-' || @days || ' days')
-    ORDER BY arrival_date DESC, modal_price DESC
-  `).all({ commodity: commodityApiName, days });
+    ORDER BY ${dateSort} DESC, modal_price DESC
+    LIMIT @limit
+  `).all({ commodity: commodityApiName, limit: days * 10 });
 
   if (raipur.length > 0) return { scope: 'raipur', records: raipur };
 
@@ -371,21 +410,32 @@ function getPriceHistoryScoped(commodityApiName, days = 30) {
   const cg = db.prepare(`
     SELECT arrival_date, market, district, state, variety, min_price, max_price, modal_price, 'chhattisgarh' AS scope
     FROM mandi_prices
-    WHERE commodity = @commodity AND state = 'Chattisgarh'
-      AND arrival_date >= date('now', '-' || @days || ' days')
-    ORDER BY arrival_date DESC, modal_price DESC LIMIT 30
-  `).all({ commodity: commodityApiName, days });
+    WHERE commodity = @commodity AND state IN ('Chattisgarh', 'Chhattisgarh')
+    ORDER BY ${dateSort} DESC, modal_price DESC
+    LIMIT 30
+  `).all({ commodity: commodityApiName });
 
   if (cg.length > 0) return { scope: 'chhattisgarh', records: cg };
 
-  // Try neighboring / all
+  // Try other states ordered by fixed neighbor list
   const other = db.prepare(`
     SELECT arrival_date, market, district, state, variety, min_price, max_price, modal_price, 'other_state' AS scope
     FROM mandi_prices
-    WHERE commodity = @commodity
-      AND arrival_date >= date('now', '-' || @days || ' days')
-    ORDER BY arrival_date DESC, modal_price DESC LIMIT 30
-  `).all({ commodity: commodityApiName, days });
+    WHERE commodity = @commodity AND state NOT IN ('Chattisgarh', 'Chhattisgarh')
+    ORDER BY
+      CASE state
+        WHEN 'Madhya Pradesh' THEN 1
+        WHEN 'Maharashtra' THEN 2
+        WHEN 'Odisha' THEN 3
+        WHEN 'Jharkhand' THEN 4
+        WHEN 'Uttar Pradesh' THEN 5
+        WHEN 'Telangana' THEN 6
+        WHEN 'Andhra Pradesh' THEN 7
+        ELSE 8
+      END ASC,
+      ${dateSort} DESC, modal_price DESC
+    LIMIT 30
+  `).all({ commodity: commodityApiName });
 
   return { scope: 'other_state', records: other };
 }
@@ -504,7 +554,7 @@ function addSyncLog(entry) {
 function updateSyncLog(id, updates) {
   const db = getDb();
   return db.prepare(`
-    UPDATE sync_log SET finished_at = datetime('now'),
+    UPDATE sync_log SET finished_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now'),
       status = @status,
       rows_fetched = @rows_fetched,
       rows_upserted = @rows_upserted,
@@ -605,7 +655,7 @@ function deleteSession(id, client_id) {
 
 function touchSession(id) {
   const db = getDb();
-  db.prepare(`UPDATE sessions SET updated_at = datetime('now') WHERE id = @id`).run({ id });
+  db.prepare(`UPDATE sessions SET updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = @id`).run({ id });
 }
 
 // --- Messages ---

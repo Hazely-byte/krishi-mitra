@@ -71,7 +71,7 @@ app.use('/api/', apiLimiter);
 app.use('/api', (req, res, next) => {
   if (['POST', 'DELETE', 'PUT', 'PATCH'].includes(req.method)) {
     const origin = req.headers.origin;
-    const host = req.headers.host;
+    const host = req.headers['x-forwarded-host'] || req.headers.host;
     if (origin) {
       try {
         const originHost = new URL(origin).host;
@@ -177,7 +177,7 @@ VOICE RULES:
 1. Speak natural, conversational ${language === 'hi' ? 'Hindi (हिंदी)' : 'English'}.
 2. Keep answers short: AT MOST 2 SHORT SENTENCES unless the user explicitly asks for more detail.
 3. For ANY price, rate, or mandi query, you MUST call the database tools (get_mandi_prices, compare_markets, get_price_history) and speak only the returned rates. Never guess or fabricate prices.
-4. If a price is from outside Raipur, say clearly: "Raipur has no data today; the nearest price is ₹[rate] in [market], [state]." Never present it as a Raipur price.
+4. If a price is from outside Raipur (other_state), state clearly that Raipur has no reported data today and that the rate is from another state, which may be located far from Raipur, and warn that transport costs make it not directly comparable. Never present it as a Raipur price. Never use the word "nearest".
 5. If no data exists, clearly say that no mandi rate is available for that crop today.`;
 
   return {
@@ -282,11 +282,13 @@ wss.on('connection', (clientWs) => {
 
   geminiWs.on('open', () => {
     console.log('[GEMINI] Connected to Google Gemini Live WebSocket API');
-    // If not waiting for session_init or if already received, send setup
-    if (!isSihVoiceSession) {
-      // Allow 150ms grace period for session_init; if none, send default setup
+    if (sessionSetupPayload) {
+      sendSetupIfReady();
+    } else {
       setTimeout(() => {
-        sendSetupIfReady();
+        if (!setupSent) {
+          sendSetupIfReady();
+        }
       }, 150);
     }
   });
