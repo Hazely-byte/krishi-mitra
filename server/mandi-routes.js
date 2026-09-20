@@ -8,32 +8,43 @@ const router = express.Router();
 
 /**
  * GET /api/mandi
- * Query mandi prices for Raipur district (or specified district)
+ * Query mandi prices with cascading fallback:
+ * Tier 1 (Raipur today) -> Tier 2 (Raipur history <= 49d) -> Tier 3 (Other CG districts) -> Tier 4 (Other states)
+ * Search query unconditionally queries all four tiers, bypassing MIN_COMMODITIES_THRESHOLD.
  */
 router.get('/', (req, res) => {
   const district = req.query.district || 'Raipur';
   const q = req.query.q || '';
   const category = req.query.category || '';
 
-  const prices = db.getLatestPrices({ district, query: q, category });
+  const cascadeResult = db.getMarketPricesCascaded({ district, query: q, category });
   const meta = db.getSyncMeta(district);
 
   // Distinct markets present in the result
-  const marketNames = [...new Set(prices.map(p => p.market))].join(' / ') || 'Raipur Mandi';
+  const marketNames = [...new Set(cascadeResult.records.map(p => p.market))].join(' / ') || `${district} Mandi`;
 
-  const records = prices.map(p => ({
+  const records = cascadeResult.records.map(p => ({
     commodity: p.commodity,
     name_en: p.name_en || p.commodity,
     name_hi: p.name_hi || p.commodity,
     category: p.category || 'Other',
     variety: p.variety || '',
+    grade: p.grade || '',
     market: p.market,
+    district: p.district,
+    state: p.state,
+    state_display: p.state_display,
     arrival_date: p.arrival_date,
     min: p.min_price,
     max: p.max_price,
     modal: p.modal_price,
     unit: 'rupees per quintal',
-    trend_pct: db.getTrendPct(p.commodity, p.market, district)
+    tier: p.tier,
+    tier_name: p.tier_name,
+    days_old: p.days_old,
+    scope: p.scope,
+    transport_warning: Boolean(p.transport_warning),
+    trend_pct: db.getTrendPct(p.commodity, p.market, p.district)
   }));
 
   res.json({
@@ -44,7 +55,11 @@ router.get('/', (req, res) => {
     },
     last_updated: meta.last_updated,
     latest_data_date: meta.latest_data_date,
+    reference_date: cascadeResult.reference_date,
     stale: meta.stale,
+    threshold: cascadeResult.threshold,
+    is_search: cascadeResult.is_search,
+    tiers_present: cascadeResult.tiers_present,
     count: records.length,
     records
   });

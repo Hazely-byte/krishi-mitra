@@ -4,6 +4,15 @@ const fs = require('fs');
 const path = require('path');
 const db = require('./db');
 
+/**
+ * DATA SOURCE & HISTORICAL ARCHIVE INVESTIGATION NOTE:
+ * Genuine investigation into data.gov.in revealed that the Directorate of Marketing & Inspection (DMI)
+ * exposes only a single live daily-snapshot resource (9ef84268-d588-465a-a308-a864a43d0070).
+ * No separate historical/archival API resource with an arrival_date filter is published by the ministry.
+ * Therefore, historical depth is accumulated locally in data/krishi.db across scheduled daily runs
+ * via the ON CONFLICT(state, district, market, commodity, variety, grade, arrival_date) DO UPDATE pattern.
+ * Historical records are never deleted, allowing Tier 2 lookback to grow naturally over time.
+ */
 const RESOURCE_ID = '9ef84268-d588-465a-a308-a864a43d0070';
 const API_BASE = 'https://api.data.gov.in/resource';
 const PAGE_SIZE = 10000;

@@ -167,8 +167,62 @@ function upsertPriceMany(rows) {
   return tx(rows);
 }
 
+const MIN_COMMODITIES_THRESHOLD = 5;
+const MAX_HISTORICAL_LOOKBACK_DAYS = 49; // 7 weeks
+
+const STATE_NAMES = {
+  'Chattisgarh': 'Chhattisgarh / छत्तीसगढ़',
+  'Chhattisgarh': 'Chhattisgarh / छत्तीसगढ़',
+  'Madhya Pradesh': 'Madhya Pradesh / मध्य प्रदेश',
+  'Maharashtra': 'Maharashtra / महाराष्ट्र',
+  'Odisha': 'Odisha / ओडिशा',
+  'Jharkhand': 'Jharkhand / झारखंड',
+  'Uttar Pradesh': 'Uttar Pradesh / उत्तर प्रदेश',
+  'Telangana': 'Telangana / तेलंगाना',
+  'Andhra Pradesh': 'Andhra Pradesh / आंध्र प्रदेश',
+  'Rajasthan': 'Rajasthan / राजस्थान',
+  'Gujarat': 'Gujarat / गुजरात',
+  'Punjab': 'Punjab / पंजाब',
+  'Haryana': 'Haryana / हरियाणा',
+  'Karnataka': 'Karnataka / कर्नाटक',
+  'Tamil Nadu': 'Tamil Nadu / तमिलनाडु',
+  'West Bengal': 'West Bengal / पश्चिम बंगाल',
+  'Bihar': 'Bihar / बिहार'
+};
+
+function getStateDisplay(state) {
+  if (!state) return '';
+  const s = state.trim();
+  return STATE_NAMES[s] || `${s} / ${s}`;
+}
+
+function getTodayDateKolkata() {
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+  return formatter.format(now); // YYYY-MM-DD
+}
+
+function computeDaysOld(arrivalDateStr, todayStr) {
+  if (!arrivalDateStr) return 0;
+  const t = new Date(todayStr + 'T00:00:00Z').getTime();
+  const a = new Date(arrivalDateStr + 'T00:00:00Z').getTime();
+  const diffDays = Math.round((t - a) / (1000 * 60 * 60 * 24));
+  return Math.max(0, diffDays);
+}
+
+function getCutoffDateStr(todayStr, maxDays = MAX_HISTORICAL_LOOKBACK_DAYS) {
+  const d = new Date(todayStr + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() - maxDays);
+  return d.toISOString().slice(0, 10);
+}
+
 /**
- * Get latest prices for Raipur Market Page.
+ * Get latest prices for Raipur Market Page (Legacy / Uncascaded).
  * Strictly Raipur district: one card per commodity, using the latest arrival_date;
  * among markets on that date, show the one with the highest modal price.
  */
@@ -226,6 +280,268 @@ function getLatestPrices({ district = 'Raipur', query = '', category = '' } = {}
   }
 
   return results;
+}
+
+/**
+ * Cascading Fallback for Market Page:
+ * Prioritizes:
+ *   TIER 1 — Today, Raipur district (one card per commodity, highest modal price)
+ *   TIER 2 — Historical lookback, Raipur district (≤ 49 days, most recent date per crop)
+ *   TIER 3 — Other Chhattisgarh districts (dynamic district list, today or ≤ 49 days)
+ *   TIER 4 — Other states (MP, MH, OD, JH, UP, TS, AP, others; highest modal price; transport warning)
+ *
+ * NOTE ON SEARCH BEHAVIOR:
+ * When query (search term) is non-empty, all 4 tiers are queried unconditionally,
+ * bypassing MIN_COMMODITIES_THRESHOLD so any available crop in any tier can be found.
+ * Results remain strictly ordered by tier priority.
+ */
+function getMarketPricesCascaded({ district = 'Raipur', query = '', category = '', threshold = MIN_COMMODITIES_THRESHOLD } = {}) {
+  const db = getDb();
+  const todayKolkata = getTodayDateKolkata();
+  const cutoffDate = getCutoffDateStr(todayKolkata, MAX_HISTORICAL_LOOKBACK_DAYS);
+  const hasSearch = Boolean(query && query.trim());
+
+  const selectedSet = new Set();
+  const records = [];
+
+  // TIER 1: Today, Raipur district
+  const tier1Rows = db.prepare(`
+    WITH best AS (
+      SELECT mp.*, c.name_en, c.name_hi, c.category,
+        ROW_NUMBER() OVER (
+          PARTITION BY mp.commodity
+          ORDER BY mp.modal_price DESC, mp.market ASC
+        ) AS rn
+      FROM mandi_prices mp
+      LEFT JOIN commodities c ON mp.commodity = c.name_api
+      WHERE mp.district = @district AND mp.arrival_date = @today
+    )
+    SELECT * FROM best WHERE rn = 1
+    ORDER BY modal_price DESC
+  `).all({ district, today: todayKolkata });
+
+  for (const row of tier1Rows) {
+    records.push({
+      commodity: row.commodity,
+      name_en: row.name_en || row.commodity,
+      name_hi: row.name_hi || row.commodity,
+      category: row.category || 'Other',
+      variety: row.variety || '',
+      grade: row.grade || '',
+      market: row.market,
+      district: row.district,
+      state: row.state,
+      state_display: getStateDisplay(row.state),
+      arrival_date: row.arrival_date,
+      min_price: row.min_price,
+      max_price: row.max_price,
+      modal_price: row.modal_price,
+      tier: 1,
+      tier_name: 'raipur_today',
+      days_old: computeDaysOld(row.arrival_date, todayKolkata),
+      scope: 'raipur',
+      transport_warning: false
+    });
+    selectedSet.add(row.commodity);
+  }
+
+  // TIER 2: Historical lookback, Raipur district (up to 49 days)
+  if (hasSearch || records.length < threshold) {
+    const tier2Rows = db.prepare(`
+      WITH best AS (
+        SELECT mp.*, c.name_en, c.name_hi, c.category,
+          ROW_NUMBER() OVER (
+            PARTITION BY mp.commodity
+            ORDER BY mp.arrival_date DESC, mp.modal_price DESC, mp.market ASC
+          ) AS rn
+        FROM mandi_prices mp
+        LEFT JOIN commodities c ON mp.commodity = c.name_api
+        WHERE mp.district = @district
+          AND mp.arrival_date < @today
+          AND mp.arrival_date >= @cutoffDate
+      )
+      SELECT * FROM best WHERE rn = 1
+      ORDER BY arrival_date DESC, modal_price DESC
+    `).all({ district, today: todayKolkata, cutoffDate });
+
+    for (const row of tier2Rows) {
+      if (selectedSet.has(row.commodity)) continue;
+      records.push({
+        commodity: row.commodity,
+        name_en: row.name_en || row.commodity,
+        name_hi: row.name_hi || row.commodity,
+        category: row.category || 'Other',
+        variety: row.variety || '',
+        grade: row.grade || '',
+        market: row.market,
+        district: row.district,
+        state: row.state,
+        state_display: getStateDisplay(row.state),
+        arrival_date: row.arrival_date,
+        min_price: row.min_price,
+        max_price: row.max_price,
+        modal_price: row.modal_price,
+        tier: 2,
+        tier_name: 'raipur_history',
+        days_old: computeDaysOld(row.arrival_date, todayKolkata),
+        scope: 'raipur',
+        transport_warning: false
+      });
+      selectedSet.add(row.commodity);
+      if (!hasSearch && records.length >= threshold) break;
+    }
+  }
+
+  // TIER 3: Other Chhattisgarh districts (today or up to 49 days)
+  if (hasSearch || records.length < threshold) {
+    const tier3Rows = db.prepare(`
+      WITH best AS (
+        SELECT mp.*, c.name_en, c.name_hi, c.category,
+          ROW_NUMBER() OVER (
+            PARTITION BY mp.commodity
+            ORDER BY mp.arrival_date DESC, mp.modal_price DESC, mp.market ASC
+          ) AS rn
+        FROM mandi_prices mp
+        LEFT JOIN commodities c ON mp.commodity = c.name_api
+        WHERE (mp.state LIKE '%chattisgarh%' OR mp.state LIKE '%chhattisgarh%')
+          AND mp.district != @district
+          AND mp.arrival_date >= @cutoffDate
+      )
+      SELECT * FROM best WHERE rn = 1
+      ORDER BY arrival_date DESC, modal_price DESC
+    `).all({ district, cutoffDate });
+
+    for (const row of tier3Rows) {
+      if (selectedSet.has(row.commodity)) continue;
+      records.push({
+        commodity: row.commodity,
+        name_en: row.name_en || row.commodity,
+        name_hi: row.name_hi || row.commodity,
+        category: row.category || 'Other',
+        variety: row.variety || '',
+        grade: row.grade || '',
+        market: row.market,
+        district: row.district,
+        state: row.state,
+        state_display: 'Chhattisgarh / छत्तीसगढ़',
+        arrival_date: row.arrival_date,
+        min_price: row.min_price,
+        max_price: row.max_price,
+        modal_price: row.modal_price,
+        tier: 3,
+        tier_name: 'cg_districts',
+        days_old: computeDaysOld(row.arrival_date, todayKolkata),
+        scope: 'chhattisgarh',
+        transport_warning: false
+      });
+      selectedSet.add(row.commodity);
+      if (!hasSearch && records.length >= threshold) break;
+    }
+  }
+
+  // TIER 4: Other states (ALWAYS LAST, neighbor-state priority)
+  if (hasSearch || records.length < threshold) {
+    const tier4Rows = db.prepare(`
+      WITH best AS (
+        SELECT mp.*, c.name_en, c.name_hi, c.category,
+          ROW_NUMBER() OVER (
+            PARTITION BY mp.commodity
+            ORDER BY
+              CASE mp.state
+                WHEN 'Madhya Pradesh' THEN 1
+                WHEN 'Maharashtra' THEN 2
+                WHEN 'Odisha' THEN 3
+                WHEN 'Jharkhand' THEN 4
+                WHEN 'Uttar Pradesh' THEN 5
+                WHEN 'Telangana' THEN 6
+                WHEN 'Andhra Pradesh' THEN 7
+                ELSE 8
+              END ASC,
+              mp.arrival_date DESC,
+              mp.modal_price DESC,
+              mp.market ASC
+          ) AS rn
+        FROM mandi_prices mp
+        LEFT JOIN commodities c ON mp.commodity = c.name_api
+        WHERE NOT (mp.state LIKE '%chattisgarh%' OR mp.state LIKE '%chhattisgarh%')
+          AND mp.arrival_date >= @cutoffDate
+      )
+      SELECT * FROM best WHERE rn = 1
+      ORDER BY
+        CASE state
+          WHEN 'Madhya Pradesh' THEN 1
+          WHEN 'Maharashtra' THEN 2
+          WHEN 'Odisha' THEN 3
+          WHEN 'Jharkhand' THEN 4
+          WHEN 'Uttar Pradesh' THEN 5
+          WHEN 'Telangana' THEN 6
+          WHEN 'Andhra Pradesh' THEN 7
+          ELSE 8
+        END ASC,
+        modal_price DESC
+    `).all({ cutoffDate });
+
+    for (const row of tier4Rows) {
+      if (selectedSet.has(row.commodity)) continue;
+      records.push({
+        commodity: row.commodity,
+        name_en: row.name_en || row.commodity,
+        name_hi: row.name_hi || row.commodity,
+        category: row.category || 'Other',
+        variety: row.variety || '',
+        grade: row.grade || '',
+        market: row.market,
+        district: row.district,
+        state: row.state,
+        state_display: getStateDisplay(row.state),
+        arrival_date: row.arrival_date,
+        min_price: row.min_price,
+        max_price: row.max_price,
+        modal_price: row.modal_price,
+        tier: 4,
+        tier_name: 'other_state',
+        days_old: computeDaysOld(row.arrival_date, todayKolkata),
+        scope: 'other_state',
+        transport_warning: true
+      });
+      selectedSet.add(row.commodity);
+      if (!hasSearch && records.length >= threshold) break;
+    }
+  }
+
+  let filtered = records;
+
+  if (category) {
+    filtered = filtered.filter(r => (r.category || '').toLowerCase() === category.toLowerCase());
+  }
+
+  if (hasSearch) {
+    const q = query.trim().normalize('NFC').toLowerCase();
+    const normalizeHindi = (s) => s.normalize('NFC').toLowerCase().replace(/[\u0901\u0902]/g, '\u0902');
+    const qNorm = normalizeHindi(q);
+    filtered = filtered.filter(r => {
+      const nameEn = (r.name_en || r.commodity).toLowerCase();
+      const nameHi = normalizeHindi(r.name_hi || '');
+      const cat = (r.category || '').toLowerCase();
+      const variety = (r.variety || '').toLowerCase();
+      const districtName = (r.district || '').toLowerCase();
+      const stateName = (r.state || '').toLowerCase();
+      const marketName = (r.market || '').toLowerCase();
+      const commodity = r.commodity.toLowerCase();
+      return nameEn.includes(q) || nameHi.includes(qNorm) || cat.includes(q) ||
+             variety.includes(q) || commodity.includes(q) || districtName.includes(q) ||
+             stateName.includes(q) || marketName.includes(q);
+    });
+  }
+
+  return {
+    threshold,
+    is_search: hasSearch,
+    reference_date: todayKolkata,
+    tiers_present: [...new Set(filtered.map(r => r.tier))],
+    count: filtered.length,
+    records: filtered
+  };
 }
 
 /**
@@ -695,8 +1011,9 @@ function pruneOldSessions(client_id, maxSessions = 100) {
 
 module.exports = {
   getDb,
-  upsertPriceMany, getLatestPrices, getMandiPricesScoped,
-  compareMarketsScoped, getPriceHistoryScoped, getTrendPct,
+  upsertPriceMany, getLatestPrices, getMarketPricesCascaded,
+  MIN_COMMODITIES_THRESHOLD, MAX_HISTORICAL_LOOKBACK_DAYS, getStateDisplay,
+  getMandiPricesScoped, compareMarketsScoped, getPriceHistoryScoped, getTrendPct,
   getDistinctCommodities, getDistinctMarkets,
   upsertCommodity, resolveCommodity,
   addSyncLog, updateSyncLog, getLastSync, getSyncMeta,
