@@ -4,6 +4,10 @@ data/
 *.jsonl
 SIH_backup/
 Krishi_Mitra_Technical_Report.*
+KRISHI_MITRA_TECHNICAL_EXECUTION_REPORT.*
+report_document.html
+build_pdf_report.js
+*.pdf
 build_report.py
 latency-report.md
 trailing-silence-report*.md
