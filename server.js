@@ -50,6 +50,8 @@ const tools = require('./server/tools');
 const chat = require('./server/chat');
 const mandiRoutes = require('./server/mandi-routes');
 const sessionRoutes = require('./server/sessions');
+const buyers = require('./server/buyers');
+const supabase = require('./server/supabase');
 
 const app = express();
 const server = http.createServer(app);
@@ -93,10 +95,37 @@ app.use('/api/mandi', mandiRoutes);
 app.use('/api/sessions', sessionRoutes);
 app.use('/api/chat', chat.router);
 
+app.get('/api/buyers', (req, res) => {
+  try {
+    const lat = req.query.lat ? parseFloat(req.query.lat) : undefined;
+    const lng = req.query.lng ? parseFloat(req.query.lng) : undefined;
+    const radius = req.query.radius ? parseFloat(req.query.radius) : 300;
+    const type = req.query.type || 'all';
+
+    const results = buyers.getBuyersRadius(lat, lng, radius, type);
+    res.json(results);
+  } catch (err) {
+    console.error('[API /api/buyers] Error:', err);
+    res.status(500).json({ error: 'Failed to retrieve buyers' });
+  }
+});
+
 app.post('/api/location/resolve', async (req, res) => {
   const { lat, lon } = req.body || {};
   const result = await location.resolveLocation(Number(lat), Number(lon));
   res.json(result);
+});
+
+// Provide dynamic Google Maps configuration from environment variable
+app.get(['/js/maps-config.js', '/SIH/js/maps-config.js'], (req, res) => {
+  res.type('application/javascript');
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY || '';
+  res.send(`window.GOOGLE_MAPS_CONFIG = { apiKey: '${apiKey}' };\n`);
+});
+
+// REST config endpoint for maps
+app.get('/api/config/maps', (req, res) => {
+  res.json({ apiKey: process.env.GOOGLE_MAPS_API_KEY || '' });
 });
 
 // Root serves teammates' SIH frontend
@@ -166,6 +195,7 @@ function createDefaultSetupPayload() {
 // Personalized setup payload (used by Krishi Mitra SIH live voice session)
 function createPersonalizedSetupPayload({ language = 'hi', location = {}, profile = {} } = {}) {
   const today = new Date().toISOString().slice(0, 10);
+  const extractedAddress = location.address || (location.district ? `${location.district}, ${location.state || 'Chhattisgarh'}` : 'Raipur, Chhattisgarh');
   const userLoc = `${location.district || 'Raipur'}, ${location.state || 'Chhattisgarh'}`;
   const meta = db.getSyncMeta(location.district || 'Raipur');
 
@@ -174,13 +204,33 @@ Current Date: ${today}
 Location: ${userLoc}
 Language: ${language === 'hi' ? 'Hindi' : 'English'}
 Last Data Update: ${meta.last_updated || 'today'}
+The user you are speaking to is currently located at: ${extractedAddress}. Prioritize this location for all logistical and market advice.
 
 VOICE RULES:
 1. Speak natural, conversational ${language === 'hi' ? 'Hindi (हिंदी)' : 'English'}.
 2. Keep answers short: AT MOST 2 SHORT SENTENCES unless the user explicitly asks for more detail.
 3. For ANY price, rate, or mandi query, you MUST call the database tools (get_mandi_prices, compare_markets, get_price_history) and speak only the returned rates. Never guess or fabricate prices.
 4. If a price is from outside Raipur (other_state), state clearly that Raipur has no reported data today and that the rate is from another state, which may be located far from Raipur, and warn that transport costs make it not directly comparable. Never present it as a Raipur price. Never use the word "nearest".
-5. If no data exists, clearly say that no mandi rate is available for that crop today.`;
+5. If no data exists, clearly say that no mandi rate is available for that crop today.
+6. When a user asks for contact information, you are required to clearly speak the phone number, address, and operating hours of the APMC or buyer. Do not just tell them to look at the screen.
+7. If the user asks to fill, enter, save, or update their address, village, or location on the form or screen, you MUST call the autofill_user_address tool with their verified location.`;
+
+  const allToolDeclarations = [
+    ...tools.toolDeclarations,
+    {
+      name: 'autofill_user_address',
+      description: 'Automatically populates the user\'s current verified GPS/geocoded address into the active registration or analysis form fields on the screen.',
+      parameters: {
+        type: 'OBJECT',
+        properties: {
+          address: {
+            type: 'STRING',
+            description: 'Optional human-readable address to fill in. Defaults to verified device address.'
+          }
+        }
+      }
+    }
+  ];
 
   return {
     setup: {
@@ -199,7 +249,7 @@ VOICE RULES:
       systemInstruction: {
         parts: [{ text: voiceSystemInstruction }]
       },
-      tools: [{ functionDeclarations: tools.toolDeclarations }],
+      tools: [{ functionDeclarations: allToolDeclarations }],
       inputAudioTranscription: {},
       outputAudioTranscription: {},
       realtimeInputConfig: {
@@ -325,6 +375,18 @@ wss.on('connection', (clientWs) => {
             name: fc.name,
             status: 'running'
           }));
+
+          // Client-side tools (e.g. autofill_user_address executed on frontend DOM)
+          if (fc.name === 'autofill_user_address') {
+            console.log(`[CLIENT TOOL CALL] Relaying ${fc.name} to frontend clientWs:`, fc.args);
+            clientWs.send(JSON.stringify({
+              type: 'toolCall',
+              callId: fc.id,
+              name: fc.name,
+              args: fc.args
+            }));
+            continue;
+          }
 
           const toolResult = await tools.executeTool(fc.name, fc.args);
 
@@ -484,6 +546,26 @@ wss.on('connection', (clientWs) => {
       parsed = JSON.parse(message.toString());
     } catch (e) {
       parsed = null;
+    }
+
+    // 0. Tool Response from Client-Side Tools (forwarded to Gemini Live)
+    if (parsed && parsed.type === 'toolResponse') {
+      console.log(`[CLIENT TOOL RESPONSE] Forwarding ${parsed.name} response to Gemini Live:`, parsed.response);
+      const toolResponse = {
+        toolResponse: {
+          functionResponses: [
+            {
+              id: parsed.callId || parsed.id,
+              name: parsed.name,
+              response: { result: parsed.response || { success: true } }
+            }
+          ]
+        }
+      };
+      if (geminiWs.readyState === WebSocket.OPEN) {
+        geminiWs.send(JSON.stringify(toolResponse));
+      }
+      return;
     }
 
     // Session Initialization Message from SIH voice mode
@@ -672,30 +754,35 @@ function getTailscaleIPv4() {
   return null;
 }
 
-server.listen(PORT, HOST, async () => {
-  const tailscaleIp = getTailscaleIPv4();
-  console.log('====================================================');
-  console.log('🌾 KRISHI MITRA BACKEND & VOICE PROXY SERVER');
-  console.log(`👉 App Frontend:    http://localhost:${PORT}/`);
-  if (tailscaleIp) {
-    console.log(`🌐 Tailscale:       http://${tailscaleIp}:${PORT}/`);
-  }
-  console.log(`🧪 Lab Sandbox:     http://localhost:${PORT}/lab/`);
-  console.log(`⚡ WebSocket Proxy: ws://localhost:${PORT}/live`);
-  console.log(`🤖 Text Chat Model: ${chat.activeModelName}`);
-  console.log(`🎙️ Live Voice Model: ${LIVE_MODEL_NAME}`);
-  console.log('====================================================');
-
-  // Verify text model at startup
-  await chat.validateTextModel(API_KEY);
-
-  // Sync feed on startup if stale, then every 3 hours
-  const govKey = process.env.DATA_GOV_API_KEY;
-  if (govKey) {
-    if (mandi.needsSync()) {
-      console.log('[startup] Triggering initial mandi sync...');
-      mandi.syncNational(govKey).catch(err => console.error('[startup] Sync failed:', err.message));
+if (require.main === module) {
+  server.listen(PORT, HOST, async () => {
+    const tailscaleIp = getTailscaleIPv4();
+    console.log('====================================================');
+    console.log('🌾 KRISHI MITRA BACKEND & VOICE PROXY SERVER');
+    console.log(`👉 App Frontend:    http://localhost:${PORT}/`);
+    if (tailscaleIp) {
+      console.log(`🌐 Tailscale:       http://${tailscaleIp}:${PORT}/`);
     }
-    mandi.startPeriodicSync(govKey);
-  }
-});
+    console.log(`🧪 Lab Sandbox:     http://localhost:${PORT}/lab/`);
+    console.log(`⚡ WebSocket Proxy: ws://localhost:${PORT}/live`);
+    console.log(`🤖 Text Chat Model: ${chat.activeModelName}`);
+    console.log(`🎙️ Live Voice Model: ${LIVE_MODEL_NAME}`);
+    console.log('====================================================');
+
+    // Verify text model at startup
+    await chat.validateTextModel(API_KEY);
+
+    // Sync feed on startup if stale, then every 3 hours
+    const govKey = process.env.DATA_GOV_API_KEY;
+    if (govKey) {
+      if (mandi.needsSync()) {
+        console.log('[startup] Triggering initial mandi sync...');
+        mandi.syncNational(govKey).catch(err => console.error('[startup] Sync failed:', err.message));
+      }
+      mandi.startPeriodicSync(govKey);
+    }
+  });
+}
+
+module.exports = app;
+module.exports.server = server;

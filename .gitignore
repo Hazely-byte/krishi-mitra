@@ -1,17 +1,64 @@
+# ==============================================================================
+# KRISHI MITRA ROOT .GITIGNORE
+# ==============================================================================
+
+# Environment variables & secrets (CRITICAL: NEVER COMMIT)
 .env
+.env.*
+!.env.example
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# API key files
+SIH/js/maps-config.js
+js/maps-config.js
+
+# Node dependencies & logs
 node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# Runtime databases & local sync state
 data/
+*.db
+*.db-wal
+*.db-shm
 *.jsonl
+
+# Vercel & build artifacts
+.vercel
+dist/
+build/
+
+# Teammates' frontend repository (managed in separate git repository)
+SIH/
+
+# Internal reports, benchmarks & scratch scripts
 SIH_backup/
 Krishi_Mitra_Technical_Report.*
 KRISHI_MITRA_TECHNICAL_EXECUTION_REPORT.*
 report_document.html
 build_pdf_report.js
+build_report.py
 *.pdf
 scratch/
-build_report.py
+bench/
 latency-report.md
 trailing-silence-report*.md
 test-api-key.js
-bench/
-SIH/
+
+# Operating System & IDE files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# AI and IDE artifacts
+agents.md
+claude.md
+.cursorrules
+.cursor/

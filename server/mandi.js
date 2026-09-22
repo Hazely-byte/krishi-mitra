@@ -208,11 +208,14 @@ async function fetchPage(apiKey, { offset = 0, limit = PAGE_SIZE } = {}, retries
 
 async function fetchNationalFeed(apiKey) {
   const allRecords = [];
+  const limit = 5000;
   let offset = 0;
   let total = null;
 
-  while (true) {
-    const data = await fetchPage(apiKey, { offset, limit: PAGE_SIZE });
+  while (offset < 10000) {
+    const fetchLimit = Math.min(limit, 10000 - offset);
+    if (fetchLimit <= 0) break;
+    const data = await fetchPage(apiKey, { offset, limit: fetchLimit });
     if (total === null) total = data.total;
     if (!data.records || data.records.length === 0) break;
     allRecords.push(...data.records);

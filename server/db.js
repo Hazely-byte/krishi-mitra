@@ -2,6 +2,7 @@
 
 const path = require('path');
 const Database = require('better-sqlite3');
+const haversine = require('./haversine');
 
 const DB_PATH = path.join(__dirname, '..', 'data', 'krishi.db');
 
@@ -102,6 +103,11 @@ function initSchema(db) {
       db.exec(`ALTER TABLE sync_log ADD COLUMN chhattisgarh_rows INTEGER DEFAULT 0;`);
       db.exec(`ALTER TABLE sync_log ADD COLUMN raipur_commodities INTEGER DEFAULT 0;`);
     }
+
+    const priceCols = db.prepare(`PRAGMA table_info(mandi_prices)`).all().map(c => c.name);
+    if (!priceCols.includes('source')) {
+      db.exec(`ALTER TABLE mandi_prices ADD COLUMN source TEXT DEFAULT 'data.gov.in';`);
+    }
   } catch (e) {
     // Ignore if already migrated
   }
@@ -147,19 +153,21 @@ function stmt(db, name, sql) {
 function upsertPriceMany(rows) {
   const db = getDb();
   const upsert = stmt(db, 'upsertPrice', `
-    INSERT INTO mandi_prices (state, district, market, commodity, variety, grade, arrival_date, min_price, max_price, modal_price, fetched_at)
-    VALUES (@state, @district, @market, @commodity, @variety, @grade, @arrival_date, @min_price, @max_price, @modal_price, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+    INSERT INTO mandi_prices (state, district, market, commodity, variety, grade, arrival_date, min_price, max_price, modal_price, fetched_at, source)
+    VALUES (@state, @district, @market, @commodity, @variety, @grade, @arrival_date, @min_price, @max_price, @modal_price, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), COALESCE(@source, 'data.gov.in'))
     ON CONFLICT(state, district, market, commodity, variety, grade, arrival_date)
     DO UPDATE SET
       min_price = excluded.min_price,
       max_price = excluded.max_price,
       modal_price = excluded.modal_price,
+      source = COALESCE(excluded.source, mandi_prices.source),
       fetched_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
   `);
   const tx = db.transaction((rows) => {
     let upserted = 0;
     for (const row of rows) {
-      const info = upsert.run(row);
+      const rowWithSource = { source: 'data.gov.in', ...row };
+      const info = upsert.run(rowWithSource);
       if (info.changes > 0) upserted++;
     }
     return upserted;
@@ -539,6 +547,149 @@ function getMarketPricesCascaded({ district = 'Raipur', query = '', category = '
     is_search: hasSearch,
     reference_date: todayKolkata,
     tiers_present: [...new Set(filtered.map(r => r.tier))],
+    count: filtered.length,
+    records: filtered
+  };
+}
+
+/**
+ * 300km Radius Filtering Engine (Option A: Nearest First, Option B: Multi-Mandi Comparison)
+ * Retrieves latest price per commodity per mandi within 300km of the user's location.
+ * Distance is computed via Haversine formula based on user GPS (defaulting to Raipur if unavailable).
+ * Mandis are strictly sorted ascending by distance (Raipur 0km -> Durg ~37km -> Rajnandgaon ~69km -> Bilaspur, etc.).
+ * Multi-mandi records are preserved so farmers can compare prices across different nearby markets for arbitrage.
+ */
+function getMarketPricesRadius({ lat = 21.2514, lng = 81.6296, maxRadiusKm = 300, query = '', category = '' } = {}) {
+  const db = getDb();
+  const todayKolkata = getTodayDateKolkata();
+  const cutoffDate = getCutoffDateStr(todayKolkata, MAX_HISTORICAL_LOOKBACK_DAYS);
+  const userLat = Number(lat) || haversine.DEFAULT_COORDS.lat;
+  const userLng = Number(lng) || haversine.DEFAULT_COORDS.lng;
+
+  // Retrieve the latest arrival_date record for each commodity at each market within cutoff window
+  const sql = `
+    WITH latest AS (
+      SELECT market, district, commodity, MAX(arrival_date) AS max_date
+      FROM mandi_prices
+      WHERE arrival_date >= @cutoffDate
+      GROUP BY market, district, commodity
+    ),
+    best AS (
+      SELECT mp.*, c.name_en, c.name_hi, c.category,
+        ROW_NUMBER() OVER (
+          PARTITION BY mp.market, mp.district, mp.commodity
+          ORDER BY mp.modal_price DESC
+        ) AS rn
+      FROM mandi_prices mp
+      JOIN latest l ON mp.market = l.market AND mp.district = l.district AND mp.commodity = l.commodity AND mp.arrival_date = l.max_date
+      LEFT JOIN commodities c ON mp.commodity = c.name_api
+    )
+    SELECT * FROM best WHERE rn = 1
+  `;
+
+  const rows = db.prepare(sql).all({ cutoffDate });
+
+  const records = [];
+  for (const row of rows) {
+    const coords = haversine.getMandiCoordinates(row.market, row.district);
+    let dist = null;
+    if (coords) {
+      dist = haversine.calculateHaversineDistanceKm(userLat, userLng, coords.lat, coords.lng);
+    } else {
+      const isCG = (row.state && (row.state.toLowerCase().includes('chattisgarh') || row.state.toLowerCase().includes('chhattisgarh')));
+      dist = isCG ? 180.0 : 350.0;
+    }
+
+    // Filter to radius
+    if (dist > maxRadiusKm) continue;
+
+    const daysOld = computeDaysOld(row.arrival_date, todayKolkata);
+    const isToday = daysOld === 0;
+    const isCG = (row.state && (row.state.toLowerCase().includes('chattisgarh') || row.state.toLowerCase().includes('chhattisgarh')));
+    const isUserDistrict = row.district && row.district.toLowerCase() === 'raipur';
+
+    let tier = 1;
+    let tierName = 'today';
+    if (isToday) {
+      tier = 1;
+      tierName = 'today';
+    } else if (daysOld > 0 && isUserDistrict) {
+      tier = 2;
+      tierName = 'raipur_history';
+    } else if (isCG) {
+      tier = 3;
+      tierName = 'cg_districts';
+    } else {
+      tier = 4;
+      tierName = 'other_state';
+    }
+
+    records.push({
+      commodity: row.commodity,
+      name_en: row.name_en || row.commodity,
+      name_hi: row.name_hi || row.commodity,
+      category: row.category || 'Other',
+      variety: row.variety || '',
+      grade: row.grade || '',
+      market: row.market,
+      district: row.district,
+      state: row.state,
+      state_display: getStateDisplay(row.state),
+      arrival_date: row.arrival_date,
+      min_price: row.min_price,
+      max_price: row.max_price,
+      modal_price: row.modal_price,
+      distance_km: dist,
+      tier,
+      tier_name: tierName,
+      days_old: daysOld,
+      scope: isUserDistrict ? 'raipur' : (isCG ? 'chhattisgarh' : 'other_state'),
+      transport_warning: !isCG,
+      source: row.source || 'data.gov.in',
+      coordinates: coords
+    });
+  }
+
+  // Strictly sort ascending by distance (Nearest Mandi First!), then arrival_date DESC, then modal_price DESC
+  records.sort((a, b) => {
+    if (a.distance_km !== b.distance_km) {
+      return a.distance_km - b.distance_km;
+    }
+    if (a.arrival_date !== b.arrival_date) {
+      return b.arrival_date.localeCompare(a.arrival_date);
+    }
+    return b.modal_price - a.modal_price;
+  });
+
+  let filtered = records;
+
+  if (category) {
+    filtered = filtered.filter(r => (r.category || '').toLowerCase() === category.toLowerCase());
+  }
+
+  if (query && query.trim()) {
+    const q = query.trim().normalize('NFC').toLowerCase();
+    const normalizeHindi = (s) => s.normalize('NFC').toLowerCase().replace(/[\u0901\u0902]/g, '\u0902');
+    const qNorm = normalizeHindi(q);
+    filtered = filtered.filter(r => {
+      const nameEn = (r.name_en || r.commodity).toLowerCase();
+      const nameHi = normalizeHindi(r.name_hi || '');
+      const cat = (r.category || '').toLowerCase();
+      const variety = (r.variety || '').toLowerCase();
+      const districtName = (r.district || '').toLowerCase();
+      const stateName = (r.state || '').toLowerCase();
+      const marketName = (r.market || '').toLowerCase();
+      const commodity = r.commodity.toLowerCase();
+      return nameEn.includes(q) || nameHi.includes(qNorm) || cat.includes(q) ||
+             variety.includes(q) || commodity.includes(q) || districtName.includes(q) ||
+             stateName.includes(q) || marketName.includes(q);
+    });
+  }
+
+  return {
+    radius_km: maxRadiusKm,
+    user_coords: { lat: userLat, lng: userLng },
+    reference_date: todayKolkata,
     count: filtered.length,
     records: filtered
   };
@@ -1011,7 +1162,7 @@ function pruneOldSessions(client_id, maxSessions = 100) {
 
 module.exports = {
   getDb,
-  upsertPriceMany, getLatestPrices, getMarketPricesCascaded,
+  upsertPriceMany, getLatestPrices, getMarketPricesCascaded, getMarketPricesRadius,
   MIN_COMMODITIES_THRESHOLD, MAX_HISTORICAL_LOOKBACK_DAYS, getStateDisplay,
   getMandiPricesScoped, compareMarketsScoped, getPriceHistoryScoped, getTrendPct,
   getDistinctCommodities, getDistinctMarkets,
