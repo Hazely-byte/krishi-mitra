@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Buyers & Markets — Krishi Mitra</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/components.css">
+<link rel="stylesheet" href="css/navbar.css">
+<link rel="stylesheet" href="css/market-extra.css">
+<link rel="stylesheet" href="css/responsive.css">
+</head>
+<body>
+
+<!-- ============ TOAST ============ -->
+<div class="toast" id="toast"></div>
+
+<!-- ============ SCREEN 7: BUYERS ============ -->
+<div class="screen active" id="screen-buyers">
+  <div class="header-bar">
+    <button class="back-btn" onclick="window.location.href='home.html'">←</button>
+    <span class="header-title" data-i18n="buyers_title">🤝 Buyers & Markets</span>
+    <button class="lang-toggle-small" onclick="toggleLang()">EN</button>
+  </div>
+
+  <div class="buyers-filter">
+    <button class="filter-chip active" onclick="filterBuyers(this, 'all')" data-i18n="all">All</button>
+    <button class="filter-chip" onclick="filterBuyers(this, 'market')" data-i18n="markets">Markets</button>
+    <button class="filter-chip" onclick="filterBuyers(this, 'company')" data-i18n="companies">Companies</button>
+    <button class="filter-chip" onclick="filterBuyers(this, 'trader')" data-i18n="traders">Traders</button>
+  </div>
+
+  <!-- Buy/Sell Location Notice Banner -->
+  <div class="buysell-gps-wrapper" style="padding: 0 16px 12px;">
+    <div class="gps-notice-box hidden" id="buysell-gps-banner">
+      <span class="gps-notice-icon">📍</span>
+      <span class="gps-notice-text" id="buysell-gps-text" data-i18n="gps_buysell_prompt">Enable location to see nearby buyers and markets</span>
+      <button class="gps-retry-link" id="buysell-gps-btn" data-i18n="gps_enable_btn">Enable</button>
+    </div>
+  </div>
+
+  <div class="buyers-list" id="buyers-list">
+    <!-- Dynamically populated -->
+  </div>
+</div>
+
+<!-- ============ BUYER DETAIL MODAL (4-TAB SHELL) ============ -->
+<div class="modal-backdrop commodity-modal-backdrop" id="buyer-modal-backdrop" aria-hidden="true"></div>
+<div class="commodity-modal-panel" id="buyer-modal-panel" role="dialog" aria-modal="true" aria-labelledby="buyer-modal-title">
+  <!-- Modal Drag Handle -->
+  <div class="modal-handle-bar">
+    <div class="modal-drag-handle"></div>
+  </div>
+
+  <!-- Header -->
+  <div class="modal-header">
+    <div class="modal-header-info">
+      <div class="modal-crop-icon" id="buyer-modal-icon">🏪</div>
+      <div class="modal-title-group">
+        <h3 class="modal-crop-title" id="buyer-modal-title">--</h3>
+        <div class="modal-crop-meta">
+          <span class="modal-variety-badge" id="buyer-modal-badge">--</span>
+          <span class="modal-mandi-tag" id="buyer-modal-location">--</span>
+          <span class="buyer-distance-badge" id="buyer-modal-distance">📍 -- km</span>
+        </div>
+      </div>
+    </div>
+    <button class="modal-close-btn" id="buyer-modal-close" aria-label="Close modal">✕</button>
+  </div>
+
+  <!-- Tabs Nav -->
+  <div class="modal-tabs-bar" role="tablist">
+    <button class="modal-tab active" id="buyer-tab-nav" role="tab" aria-selected="true" aria-controls="buyer-panel-nav">
+      <span class="tab-icon">🗺️</span>
+      <span class="tab-text" data-i18n="tab_map_nav">Map & Nav</span>
+    </button>
+    <button class="modal-tab" id="buyer-tab-contact" role="tab" aria-selected="false" aria-controls="buyer-panel-contact">
+      <span class="tab-icon">📞</span>
+      <span class="tab-text" data-i18n="tab_contact">Contact</span>
+    </button>
+    <button class="modal-tab" id="buyer-tab-demands" role="tab" aria-selected="false" aria-controls="buyer-panel-demands">
+      <span class="tab-icon">🌾</span>
+      <span class="tab-text" data-i18n="tab_demands">Active Demands</span>
+    </button>
+    <button class="modal-tab" id="buyer-tab-trust" role="tab" aria-selected="false" aria-controls="buyer-panel-trust">
+      <span class="tab-icon">🛡️</span>
+      <span class="tab-text" data-i18n="tab_trust">Trust & Payment</span>
+    </button>
+  </div>
+
+  <!-- Tab Panels Container -->
+  <div class="modal-body">
+    <!-- TAB 1: Map & Navigation -->
+    <div class="tab-panel active" id="buyer-panel-nav" role="tabpanel" aria-labelledby="buyer-tab-nav">
+      <!-- Route / Distance summary -->
+      <div class="route-summary-bar" id="buyer-route-summary-bar">
+        <div class="route-mode-badge" id="buyer-route-mode-btn" role="button" tabindex="0" title="Click to change transport mode">
+          <span id="buyer-route-mode-icon">🚗</span>
+          <span id="buyer-route-mode-label" data-i18n="driving_mode">Driving</span>
+          <span class="mode-select-indicator">▾</span>
+        </div>
+        <div class="route-stats" id="buyer-route-stats">
+          <span class="route-distance" id="buyer-route-distance">-- km</span>
+          <span class="route-dot">•</span>
+          <span class="route-duration" id="buyer-route-duration">-- mins</span>
+        </div>
+      </div>
+
+      <!-- Location notice -->
+      <div class="gps-notice-box hidden" id="buyer-gps-notice-box">
+        <span class="gps-notice-icon">📍</span>
+        <span class="gps-notice-text" id="buyer-gps-notice-text" data-i18n="gps_required_for_distance">Enable location for distance and duration</span>
+        <button class="gps-retry-link" id="buyer-gps-retry-btn">Enable</button>
+      </div>
+
+      <!-- Map Container with skeleton & error -->
+      <div class="map-wrapper">
+        <div class="map-skeleton" id="buyer-map-skeleton">
+          <div class="skeleton-spinner"></div>
+          <span class="skeleton-text">Loading map...</span>
+        </div>
+        <div class="map-unavailable-box hidden" id="buyer-map-unavailable-box">
+          <span class="map-unavail-icon">🗺️</span>
+          <div class="map-unavail-title" data-i18n="maps_unavailable">Google Maps is currently unavailable</div>
+          <div class="map-unavail-desc" data-i18n="maps_unavailable_desc">Map service could not be loaded. Please try again later.</div>
+        </div>
+        <div class="mandi-map" id="buyer-mandi-map"></div>
+      </div>
+
+      <!-- Start Navigation Button -->
+      <div class="nav-action-area">
+        <button class="btn-start-nav" id="buyer-start-nav-btn" type="button">
+          <span id="buyer-start-nav-icon">🚗</span>
+          <span data-i18n="start_navigation">Start Navigation</span>
+        </button>
+        <div class="nav-unavailable-hint hidden" id="buyer-nav-unavailable-hint" data-i18n="location_unavailable_mandi">
+          Location unavailable for this buyer/market
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: Contact Info -->
+    <div class="tab-panel" id="buyer-panel-contact" role="tabpanel" aria-labelledby="buyer-tab-contact">
+      <!-- Contact Details -->
+      <div class="contact-details-content" id="buyer-contact-details">
+        <div class="contact-card">
+          <div class="contact-section">
+            <div class="contact-section-label" data-i18n="mandi_address_label">Address</div>
+            <div class="contact-value" id="buyer-contact-address">--</div>
+          </div>
+          <div class="contact-section">
+            <div class="contact-section-label" data-i18n="mandi_hours_label">Operating Hours</div>
+            <div class="contact-value" id="buyer-contact-hours">--</div>
+          </div>
+          <div class="contact-section">
+            <div class="contact-section-label" data-i18n="mandi_phone_label">Phone Number</div>
+            <div class="contact-value" id="buyer-contact-phone">--</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Fallback to Kisan Call Centre -->
+      <div class="kisan-call-fallback" id="buyer-kisan-fallback">
+        <div class="fallback-icon">📞</div>
+        <div class="fallback-message" data-i18n="direct_contact_fallback">
+          Direct contact unavailable. For assistance, contact the Kisan Call Centre: 1800-180-1551.
+        </div>
+        <a class="btn-call-kcc" href="tel:18001801551" data-i18n="call_kisan_call_centre">
+          📞 Call 1800-180-1551
+        </a>
+      </div>
+    </div>
+
+    <!-- TAB 3: Active Demands -->
+    <div class="tab-panel" id="buyer-panel-demands" role="tabpanel" aria-labelledby="buyer-tab-demands">
+      <div class="demands-container">
+        <div class="demands-intro" data-i18n="demands_subtitle">Currently procured crops, quality grades, and minimum volume</div>
+        <div class="demands-list" id="buyer-demands-list">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 4: Trust & Payment Terms -->
+    <div class="tab-panel" id="buyer-panel-trust" role="tabpanel" aria-labelledby="buyer-tab-trust">
+      <div class="trust-container">
+        <div class="trust-card">
+          <div class="trust-badge-row">
+            <span class="trust-verified-badge" id="buyer-trust-badge">🛡️ Verified Center</span>
+            <span class="trust-license-no" id="buyer-trust-license">License: --</span>
+          </div>
+          <div class="trust-section">
+            <div class="trust-section-title" data-i18n="payment_terms_label">Payment Terms</div>
+            <div class="trust-payment-box" id="buyer-trust-payment">--</div>
+          </div>
+          <div class="trust-section">
+            <div class="trust-section-title" data-i18n="amenities_label">Facility Amenities</div>
+            <div class="trust-amenities-list" id="buyer-trust-amenities">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Vehicle Mode Picker Modal / Bottom Sheet -->
+<div class="modal-backdrop vehicle-picker-backdrop" id="buyer-vehicle-picker-backdrop" aria-hidden="true"></div>
+<div class="commodity-modal-panel vehicle-picker-panel" id="buyer-vehicle-picker-sheet" role="dialog" aria-modal="true" aria-labelledby="buyer-vehicle-picker-title">
+  <div class="modal-header">
+    <div class="modal-header-info">
+      <div class="modal-crop-icon">🧭</div>
+      <div class="modal-title-group">
+        <h3 class="modal-crop-title" id="buyer-vehicle-picker-title" data-i18n="choose_travel_mode">Choose Transport Mode</h3>
+        <div class="modal-crop-meta" data-i18n="choose_travel_mode_desc">Select how you want to travel to this location:</div>
+      </div>
+    </div>
+    <button class="modal-close-btn" id="buyer-vehicle-picker-close" aria-label="Close transport picker">✕</button>
+  </div>
+  <div class="modal-body" style="padding: 16px;">
+    <div class="vehicle-options-list">
+      <button class="vehicle-option-item" data-mode="driving" type="button">
+        <span class="vehicle-option-icon">🚗</span>
+        <div class="vehicle-option-text">
+          <span class="vehicle-option-title" data-i18n="mode_driving">Driving / Car</span>
+          <span class="vehicle-option-sub" data-i18n="mode_driving_sub">Fastest route via highway/road</span>
+        </div>
+        <span class="vehicle-option-arrow">➔</span>
+      </button>
+
+      <button class="vehicle-option-item" data-mode="two_wheeler" type="button">
+        <span class="vehicle-option-icon">🏍️</span>
+        <div class="vehicle-option-text">
+          <span class="vehicle-option-title" data-i18n="mode_two_wheeler">Two-wheeler</span>
+          <span class="vehicle-option-sub" data-i18n="mode_two_wheeler_sub">Motorcycle / Scooter</span>
+        </div>
+        <span class="vehicle-option-arrow">➔</span>
+      </button>
+
+      <button class="vehicle-option-item" data-mode="transit" type="button">
+        <span class="vehicle-option-icon">🚌</span>
+        <div class="vehicle-option-text">
+          <span class="vehicle-option-title" data-i18n="mode_transit">Transit / Bus</span>
+          <span class="vehicle-option-sub" data-i18n="mode_transit_sub">Public transport & bus routes</span>
+        </div>
+        <span class="vehicle-option-arrow">➔</span>
+      </button>
+
+      <button class="vehicle-option-item" data-mode="walking" type="button">
+        <span class="vehicle-option-icon">🚶</span>
+        <div class="vehicle-option-text">
+          <span class="vehicle-option-title" data-i18n="mode_walking">Walking</span>
+          <span class="vehicle-option-sub" data-i18n="mode_walking_sub">Pedestrian pathways</span>
+        </div>
+        <span class="vehicle-option-arrow">➔</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ BOTTOM NAVIGATION ============ -->
+<nav class="bottom-nav" id="bottom-nav">
+  <a class="nav-item" href="home.html" data-nav="home">
+    <span class="nav-icon">🏠</span>
+    <span class="nav-label" data-i18n="nav_home">Home</span>
+  </a>
+  <a class="nav-item" href="crops.html" data-nav="crops">
+    <span class="nav-icon">🌾</span>
+    <span class="nav-label" data-i18n="nav_crops">Crops</span>
+  </a>
+  <a class="nav-item" href="market.html" data-nav="market">
+    <span class="nav-icon">📈</span>
+    <span class="nav-label" data-i18n="nav_market">Market</span>
+  </a>
+  <a class="nav-item" href="ai-help.html" data-nav="ai">
+    <span class="nav-icon">🤖</span>
+    <span class="nav-label" data-i18n="nav_ai">AI Help</span>
+  </a>
+  <a class="nav-item" href="profile.html" data-nav="profile">
+    <span class="nav-icon">👤</span>
+    <span class="nav-label" data-i18n="nav_profile">Profile</span>
+  </a>
+</nav>
+
+<script src="js/i18n.js"></script>
+<script src="js/main.js"></script>
+<script src="js/maps-config.js"></script>
+<script src="js/location.js"></script>
+<script src="js/buyers.js"></script>
+</body>
+</html>

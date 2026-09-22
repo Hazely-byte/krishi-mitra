@@ -34,9 +34,6 @@ data/
 dist/
 build/
 
-# Teammates' frontend repository (managed in separate git repository)
-SIH/
-
 # Internal reports, benchmarks & scratch scripts
 SIH_backup/
 Krishi_Mitra_Technical_Report.*

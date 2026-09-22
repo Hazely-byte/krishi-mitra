@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>AI Assistant — Krishi Mitra</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/components.css">
+<link rel="stylesheet" href="css/navbar.css">
+<link rel="stylesheet" href="css/responsive.css">
+<link rel="stylesheet" href="css/ai-help.css">
+</head>
+<body>
+
+<!-- ============ TOAST ============ -->
+<div class="toast" id="toast"></div>
+
+<!-- ============ SCREEN 6: AI RECOMMENDATIONS ============ -->
+<div class="screen active" id="screen-ai">
+  <div class="header-bar">
+    <button class="back-btn" onclick="window.location.href='home.html'">←</button>
+    <span class="header-title" data-i18n="ai_title">🤖 AI Assistant</span>
+    <button class="lang-toggle-small" onclick="toggleLang()">EN</button>
+  </div>
+
+  <!-- Top Mode Switcher Bar (Visible when a mode is active) -->
+  <div class="ai-mode-bar" id="ai-mode-bar" style="display: none;">
+    <div class="mode-segmented-ctrl">
+      <button class="mode-toggle-btn active" id="mode-btn-chat">
+        <span data-i18n="switch_to_chat">💬 Text Chat</span>
+      </button>
+      <button class="mode-toggle-btn" id="mode-btn-voice">
+        <span data-i18n="switch_to_voice">🎙️ Live Voice</span>
+      </button>
+    </div>
+    <div class="mode-bar-actions">
+      <button class="bar-icon-btn" id="btn-new-convo" title="New Session">
+        <span data-i18n="new_chat">➕ New</span>
+      </button>
+      <button class="bar-icon-btn" id="btn-history" title="History">
+        <span data-i18n="view_history_btn">📜 History</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ==================== VIEW 1: UPFRONT MODE SELECTION ==================== -->
+  <div class="ai-view mode-selection-container active" id="view-mode-select">
+    <div class="mode-header">
+      <h2 data-i18n="mode_select_title">Krishi Mitra AI Assistant</h2>
+      <p data-i18n="mode_select_subtitle">Choose your preferred mode</p>
+    </div>
+
+    <div class="mode-cards-grid">
+      <!-- Chat Mode Card -->
+      <div class="mode-card" id="card-select-chat">
+        <div class="mode-card-icon">💬</div>
+        <div class="mode-card-title" data-i18n="mode_chat">💬 Chat</div>
+        <div class="mode-card-desc" data-i18n="mode_chat_desc">
+          Type questions, view market price tables and detailed advice.
+        </div>
+        <div class="mode-card-features">
+          <span class="mode-feature-tag">Progressive Text</span>
+          <span class="mode-feature-tag">Market Tables</span>
+          <span class="mode-feature-tag">Price Warnings</span>
+        </div>
+        <button class="mode-card-btn" data-i18n="btn_start_chat">💬 Start Text Chat</button>
+      </div>
+
+      <!-- Voice Mode Card -->
+      <div class="mode-card voice-card" id="card-select-voice">
+        <div class="mode-card-icon">🎙️</div>
+        <div class="mode-card-title" data-i18n="mode_voice">🎙️ Live Voice</div>
+        <div class="mode-card-desc" data-i18n="mode_voice_desc">
+          Speak naturally for instant, hands-free spoken answers.
+        </div>
+        <div class="mode-card-features">
+          <span class="mode-feature-tag">Real-time Audio</span>
+          <span class="mode-feature-tag">Hands-Free</span>
+          <span class="mode-feature-tag">Instant Answers</span>
+        </div>
+        <button class="mode-card-btn" data-i18n="btn_start_voice">🎙️ Start Live Voice</button>
+      </div>
+    </div>
+
+    <div class="mode-history-btn-row">
+      <button class="btn-history-access" id="btn-history-access">
+        <span data-i18n="btn_past_conversations">📜 View Past Conversations</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ==================== VIEW 2: TEXT CHAT ==================== -->
+  <div class="ai-view ai-chat-container" id="view-chat">
+    <div class="ai-suggestions" id="ai-suggestions">
+      <button class="suggestion-chip" onclick="askAI(this.textContent)" data-i18n="q_where_sell">Where should I sell my crop?</button>
+      <button class="suggestion-chip" onclick="askAI(this.textContent)" data-i18n="q_best_price">Which market gives the best price?</button>
+      <button class="suggestion-chip" onclick="askAI(this.textContent)" data-i18n="q_demand">Is demand increasing?</button>
+      <button class="suggestion-chip" onclick="askAI(this.textContent)" data-i18n="q_sell_wait">Should I sell now or wait?</button>
+      <button class="suggestion-chip" onclick="askAI(this.textContent)" data-i18n="q_nearby">Which nearby market is best?</button>
+    </div>
+
+    <div class="chat-messages" id="chat-messages">
+      <div class="chat-bubble bot">
+        <div class="bot-label">🤖 <span data-i18n="ai_assistant">Krishi AI</span></div>
+        <span data-i18n="ai_welcome">Namaste! I am your Krishi AI assistant. Ask me anything about crop prices, market trends, or selling advice.</span>
+      </div>
+    </div>
+
+    <div class="chat-input-area">
+      <input type="text" class="chat-text-input" id="chat-input" placeholder="Ask a question..." data-i18n-placeholder="ask_placeholder">
+      <button class="send-btn" id="btn-send-chat" onclick="sendChat()">➤</button>
+    </div>
+  </div>
+
+  <!-- ==================== VIEW 3: LIVE VOICE ==================== -->
+  <div class="ai-view voice-view-container" id="view-voice">
+    <div class="voice-status-section">
+      <div class="voice-status-pill" id="voice-status-pill" data-i18n="voice_tap_to_speak">Tap to speak</div>
+      <div class="voice-hint-text" id="voice-hint-text" data-i18n="voice_prompt_hint">
+        Speak in Hindi or English, e.g.: "What is the paddy price in Raipur?"
+      </div>
+    </div>
+
+    <!-- Central Audio Visualizer Orb -->
+    <div class="voice-visualizer-wrap" id="voice-orb-wrap">
+      <div class="voice-ring outer"></div>
+      <div class="voice-ring middle"></div>
+      <button class="voice-main-btn" id="voice-main-btn" aria-label="Microphone Action">🎤</button>
+    </div>
+
+    <div class="voice-tool-indicator" id="voice-tool-indicator"></div>
+
+    <!-- Error Card with Retry Button -->
+    <div class="voice-error-card" id="voice-error-card">
+      <div class="voice-error-text">Microphone access error</div>
+      <button class="btn-retry-action" id="btn-voice-retry" data-i18n="voice_retry_permission">🔄 Retry Permission</button>
+    </div>
+
+    <!-- Live Transcript Card -->
+    <div class="voice-transcript-card" id="voice-transcript-card">
+      <div class="transcript-row model">🤖 <em>Voice session ready. Press microphone to begin speaking.</em></div>
+    </div>
+
+    <div class="voice-controls-bar">
+      <button class="voice-action-btn" id="voice-mute-btn" style="display: none;">
+        <span>🔇</span> <span data-i18n="voice_mute">Mute</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SESSION HISTORY DRAWER ============ -->
+<div class="drawer-backdrop" id="drawer-backdrop"></div>
+<div class="drawer-panel" id="history-drawer">
+  <div class="drawer-header">
+    <div class="drawer-title" data-i18n="history_title">Past Conversations</div>
+    <button class="drawer-close-btn" id="btn-close-drawer">✕</button>
+  </div>
+  <div class="drawer-actions-bar">
+    <button class="btn-new-convo" id="btn-drawer-new">
+      <span data-i18n="new_chat">➕ New Conversation</span>
+    </button>
+  </div>
+  <div class="drawer-content" id="history-list"></div>
+</div>
+
+<!-- ============ BOTTOM NAVIGATION ============ -->
+<nav class="bottom-nav" id="bottom-nav">
+  <a class="nav-item" href="home.html" data-nav="home">
+    <span class="nav-icon">🏠</span>
+    <span class="nav-label" data-i18n="nav_home">Home</span>
+  </a>
+  <a class="nav-item" href="crops.html" data-nav="crops">
+    <span class="nav-icon">🌾</span>
+    <span class="nav-label" data-i18n="nav_crops">Crops</span>
+  </a>
+  <a class="nav-item" href="market.html" data-nav="market">
+    <span class="nav-icon">📈</span>
+    <span class="nav-label" data-i18n="nav_market">Market</span>
+  </a>
+  <a class="nav-item active" href="ai-help.html" data-nav="ai">
+    <span class="nav-icon">🤖</span>
+    <span class="nav-label" data-i18n="nav_ai">AI Help</span>
+  </a>
+  <a class="nav-item" href="profile.html" data-nav="profile">
+    <span class="nav-icon">👤</span>
+    <span class="nav-label" data-i18n="nav_profile">Profile</span>
+  </a>
+</nav>
+
+<script src="js/i18n.js"></script>
+<script src="js/main.js"></script>
+<script src="js/location.js"></script>
+<script src="js/chat.js"></script>
+<script src="js/voice.js"></script>
+<script src="js/ai-help.js"></script>
+</body>
+</html>

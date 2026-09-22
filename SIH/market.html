@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Market Prices — Krishi Mitra</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/components.css">
+<link rel="stylesheet" href="css/navbar.css">
+<link rel="stylesheet" href="css/responsive.css">
+<link rel="stylesheet" href="css/market-extra.css">
+</head>
+<body>
+
+<!-- ============ TOAST ============ -->
+<div class="toast" id="toast"></div>
+
+<!-- ============ SCREEN 5: MARKET PRICES ============ -->
+<div class="screen active" id="screen-market">
+  <div class="header-bar">
+    <button class="back-btn" onclick="window.location.href='home.html'">←</button>
+    <span class="header-title" data-i18n="market_title">📈 Market Prices</span>
+    <button class="lang-toggle-small" onclick="toggleLang()">EN</button>
+  </div>
+
+  <div class="market-search">
+    <div class="search-wrapper">
+      <span class="search-icon">🔍</span>
+      <input type="text" class="search-input" id="market-search-input" placeholder="Search your crop..." data-i18n-placeholder="search_crop" oninput="filterMarket()">
+    </div>
+  </div>
+
+  <div class="market-info-banner" id="market-info-banner">
+    <!-- Populated dynamically with location, last updated and update button -->
+  </div>
+
+  <div class="market-list" id="market-list">
+    <!-- Dynamically populated -->
+  </div>
+</div>
+
+<!-- ============ COMMODITY DETAIL MODAL ============ -->
+<div class="modal-backdrop" id="commodity-modal-backdrop" aria-hidden="true">
+  <div class="commodity-modal-panel" id="commodity-modal" role="dialog" aria-modal="true" aria-labelledby="modal-crop-name">
+    <!-- Header -->
+    <div class="modal-header">
+      <div class="modal-header-info">
+        <span class="modal-crop-emoji" id="modal-crop-emoji">🌾</span>
+        <div class="modal-title-wrap">
+          <div class="modal-crop-title" id="modal-crop-name">Paddy (Common)</div>
+          <div class="modal-crop-subtitle">
+            <span id="modal-crop-category">Cereal</span>
+            <span class="modal-mandi-tag" id="modal-mandi-tag">📍 Raipur Mandi</span>
+          </div>
+        </div>
+      </div>
+      <button class="modal-close-btn" id="modal-close-btn" aria-label="Close modal">✕</button>
+    </div>
+
+    <!-- Tabs Nav -->
+    <div class="modal-tabs-bar" role="tablist">
+      <button class="modal-tab active" id="modal-tab-nav" role="tab" aria-selected="true" aria-controls="panel-tab-nav">
+        <span class="tab-icon">🗺️</span>
+        <span class="tab-text" data-i18n="tab_map_nav">Map & Nav</span>
+      </button>
+      <button class="modal-tab" id="modal-tab-contact" role="tab" aria-selected="false" aria-controls="panel-tab-contact">
+        <span class="tab-icon">📞</span>
+        <span class="tab-text" data-i18n="tab_contact">Contact</span>
+      </button>
+      <button class="modal-tab" id="modal-tab-trends" role="tab" aria-selected="false" aria-controls="panel-tab-trends">
+        <span class="tab-icon">📊</span>
+        <span class="tab-text" data-i18n="tab_trends">Rates & Trends</span>
+      </button>
+    </div>
+
+    <!-- Tab Panels Container -->
+    <div class="modal-body">
+      <!-- TAB 1: Map & Navigation -->
+      <div class="tab-panel active" id="panel-tab-nav" role="tabpanel" aria-labelledby="modal-tab-nav">
+        <!-- Route / Distance summary -->
+        <div class="route-summary-bar" id="route-summary-bar">
+          <div class="route-mode-badge">
+            <span>🚗</span>
+            <span data-i18n="driving_mode">Driving</span>
+          </div>
+          <div class="route-stats" id="route-stats">
+            <span class="route-distance" id="route-distance">-- km</span>
+            <span class="route-dot">•</span>
+            <span class="route-duration" id="route-duration">-- mins</span>
+          </div>
+        </div>
+
+        <!-- Location notice (e.g. GPS not granted / manual hint) -->
+        <div class="gps-notice-box hidden" id="gps-notice-box">
+          <span class="gps-notice-icon">📍</span>
+          <span class="gps-notice-text" id="gps-notice-text" data-i18n="gps_required_for_distance">Enable location for distance and duration</span>
+          <button class="gps-retry-link" id="gps-retry-btn">Enable</button>
+        </div>
+
+        <!-- Map Container with skeleton & error -->
+        <div class="map-wrapper">
+          <div class="map-skeleton" id="map-skeleton">
+            <div class="skeleton-spinner"></div>
+            <span class="skeleton-text">Loading map...</span>
+          </div>
+          <div class="map-unavailable-box hidden" id="map-unavailable-box">
+            <span class="map-unavail-icon">🗺️</span>
+            <div class="map-unavail-title" data-i18n="maps_unavailable">Google Maps is currently unavailable</div>
+            <div class="map-unavail-desc" data-i18n="maps_unavailable_desc">Map service could not be loaded. Please try again later.</div>
+          </div>
+          <div class="mandi-map" id="mandi-map"></div>
+        </div>
+
+        <!-- Start Navigation Button -->
+        <div class="nav-action-area">
+          <button class="btn-start-nav" id="start-nav-btn" type="button">
+            <span>🚗</span>
+            <span data-i18n="start_navigation">Start Navigation</span>
+          </button>
+          <div class="nav-unavailable-hint hidden" id="nav-unavailable-hint" data-i18n="location_unavailable_mandi">
+            Location unavailable for this mandi
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 2: Mandi Contact Info -->
+      <div class="tab-panel" id="panel-tab-contact" role="tabpanel" aria-labelledby="modal-tab-contact">
+        <!-- Contact skeleton -->
+        <div class="contact-skeleton" id="contact-skeleton">
+          <div class="skeleton-line medium"></div>
+          <div class="skeleton-line short"></div>
+          <div class="skeleton-line full"></div>
+        </div>
+
+        <!-- Places API Contact Details -->
+        <div class="contact-details-content" id="contact-details-content">
+          <div class="contact-card">
+            <div class="contact-section">
+              <div class="contact-section-label" data-i18n="mandi_address_label">Address</div>
+              <div class="contact-value" id="contact-address">--</div>
+            </div>
+            <div class="contact-section">
+              <div class="contact-section-label" data-i18n="mandi_hours_label">Operating Hours</div>
+              <div class="contact-value" id="contact-hours">--</div>
+            </div>
+            <div class="contact-section">
+              <div class="contact-section-label" data-i18n="mandi_phone_label">Phone Number</div>
+              <div class="contact-value" id="contact-phone">--</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Fallback to Kisan Call Centre -->
+        <div class="kisan-call-fallback" id="kisan-call-fallback">
+          <div class="fallback-icon">📞</div>
+          <div class="fallback-message" data-i18n="direct_contact_fallback">
+            Direct contact unavailable. For assistance, contact the Kisan Call Centre: 1800-180-1551.
+          </div>
+          <a class="btn-call-kcc" href="tel:18001801551" data-i18n="call_kisan_call_centre">
+            📞 Call 1800-180-1551
+          </a>
+        </div>
+      </div>
+
+      <!-- TAB 3: Rates & Trends -->
+      <div class="tab-panel" id="panel-tab-trends" role="tabpanel" aria-labelledby="modal-tab-trends">
+        <!-- Current Rate Card -->
+        <div class="current-rate-card">
+          <div class="rate-card-top">
+            <div class="rate-modal-group">
+              <div class="rate-modal-label" data-i18n="current_modal_price">Current Modal Price</div>
+              <div class="rate-modal-val" id="modal-rate-price">₹0</div>
+              <div class="rate-modal-unit" data-i18n="per_quintal">per quintal</div>
+            </div>
+            <div class="rate-range-group">
+              <div class="rate-range-label" data-i18n="price_range">Price Range</div>
+              <div class="rate-range-val" id="modal-rate-range">₹0 — ₹0</div>
+              <div class="rate-date-val" id="modal-rate-date">📅 --</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- AI Trend Analysis Section -->
+        <div class="trend-action-section">
+          <button class="btn-ai-trend" id="btn-ai-trend">
+            <span class="trend-btn-icon">📈</span>
+            <span class="trend-btn-text" data-i18n="ai_trend_analysis_btn">AI Trend Analysis</span>
+          </button>
+        </div>
+
+        <!-- Trend Result Area -->
+        <div class="trend-result-card hidden" id="trend-result-card">
+          <div class="trend-movement-row">
+            <span class="trend-movement-badge" id="trend-movement-badge">+0%</span>
+            <span class="trend-movement-summary" id="trend-movement-summary">Price movement</span>
+          </div>
+          <div class="trend-history-detail" id="trend-history-detail"></div>
+        </div>
+
+        <!-- Not Enough Data State -->
+        <div class="trend-nodata-card hidden" id="trend-nodata-card">
+          <span class="nodata-icon">ℹ️</span>
+          <span class="nodata-text" data-i18n="not_enough_data">Not enough data yet</span>
+        </div>
+
+        <!-- Mandatory Disclaimer -->
+        <div class="trend-disclaimer-box">
+          <span class="disclaimer-icon">⚠️</span>
+          <span class="disclaimer-text" data-i18n="trend_disclaimer">
+            This is a historical trend, not a price forecast. Krishi Mitra cannot predict future market prices.
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Vehicle Mode Picker Modal / Bottom Sheet (reusing modal-backdrop and commodity-modal-panel pattern) -->
+<div class="modal-backdrop vehicle-picker-backdrop" id="vehicle-picker-backdrop" aria-hidden="true"></div>
+<div class="commodity-modal-panel vehicle-picker-panel" id="vehicle-picker-sheet" role="dialog" aria-modal="true" aria-labelledby="vehicle-picker-title">
+  <div class="modal-header">
+    <div class="modal-header-info">
+      <div class="modal-crop-icon">🧭</div>
+      <div class="modal-title-group">
+        <h3 class="modal-crop-title" id="vehicle-picker-title" data-i18n="choose_travel_mode">Choose Transport Mode</h3>
+        <div class="modal-crop-meta" data-i18n="choose_travel_mode_desc">Select how you want to travel to this mandi:</div>
+      </div>
+    </div>
+    <button class="modal-close-btn" id="vehicle-picker-close" aria-label="Close transport picker">✕</button>
+  </div>
+  <div class="modal-body" style="padding: 16px;">
+    <div class="vehicle-options-list">
+      <button class="vehicle-option-item" data-mode="driving" type="button">
+        <span class="vehicle-option-icon">🚗</span>
+        <div class="vehicle-option-text">
+          <span class="vehicle-option-title" data-i18n="mode_driving">Driving / Car</span>
+          <span class="vehicle-option-sub" data-i18n="mode_driving_sub">Fastest route via highway/road</span>
+        </div>
+        <span class="vehicle-option-arrow">➔</span>
+      </button>
+
+      <button class="vehicle-option-item" data-mode="two_wheeler" type="button">
+        <span class="vehicle-option-icon">🏍️</span>
+        <div class="vehicle-option-text">
+          <span class="vehicle-option-title" data-i18n="mode_two_wheeler">Two-wheeler</span>
+          <span class="vehicle-option-sub" data-i18n="mode_two_wheeler_sub">Motorcycle / Scooter</span>
+        </div>
+        <span class="vehicle-option-arrow">➔</span>
+      </button>
+
+      <button class="vehicle-option-item" data-mode="transit" type="button">
+        <span class="vehicle-option-icon">🚌</span>
+        <div class="vehicle-option-text">
+          <span class="vehicle-option-title" data-i18n="mode_transit">Transit / Bus</span>
+          <span class="vehicle-option-sub" data-i18n="mode_transit_sub">Public transport & bus routes</span>
+        </div>
+        <span class="vehicle-option-arrow">➔</span>
+      </button>
+
+      <button class="vehicle-option-item" data-mode="walking" type="button">
+        <span class="vehicle-option-icon">🚶</span>
+        <div class="vehicle-option-text">
+          <span class="vehicle-option-title" data-i18n="mode_walking">Walking</span>
+          <span class="vehicle-option-sub" data-i18n="mode_walking_sub">Pedestrian pathways</span>
+        </div>
+        <span class="vehicle-option-arrow">➔</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ BOTTOM NAVIGATION ============ -->
+<nav class="bottom-nav" id="bottom-nav">
+  <a class="nav-item" href="home.html" data-nav="home">
+    <span class="nav-icon">🏠</span>
+    <span class="nav-label" data-i18n="nav_home">Home</span>
+  </a>
+  <a class="nav-item" href="crops.html" data-nav="crops">
+    <span class="nav-icon">🌾</span>
+    <span class="nav-label" data-i18n="nav_crops">Crops</span>
+  </a>
+  <a class="nav-item active" href="market.html" data-nav="market">
+    <span class="nav-icon">📈</span>
+    <span class="nav-label" data-i18n="nav_market">Market</span>
+  </a>
+  <a class="nav-item" href="ai-help.html" data-nav="ai">
+    <span class="nav-icon">🤖</span>
+    <span class="nav-label" data-i18n="nav_ai">AI Help</span>
+  </a>
+  <a class="nav-item" href="profile.html" data-nav="profile">
+    <span class="nav-icon">👤</span>
+    <span class="nav-label" data-i18n="nav_profile">Profile</span>
+  </a>
+</nav>
+
+<script src="js/i18n.js"></script>
+<script src="js/main.js"></script>
+<script src="js/maps-config.js"></script>
+<script src="js/location.js"></script>
+<script src="js/market.js"></script>
+</body>
+</html>

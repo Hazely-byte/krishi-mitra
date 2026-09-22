@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Farmer Profile — Krishi Mitra</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/components.css">
+<link rel="stylesheet" href="css/navbar.css">
+<link rel="stylesheet" href="css/responsive.css">
+</head>
+<body>
+
+<!-- ============ TOAST ============ -->
+<div class="toast" id="toast"></div>
+
+<!-- ============ SCREEN 2: PROFILE SETUP ============ -->
+<div class="screen active no-nav" id="screen-profile-setup">
+  <div class="header-bar">
+    <button class="back-btn" onclick="goBack()">←</button>
+    <span class="header-title" data-i18n="profile_setup_title">Farmer Profile</span>
+    <button class="lang-toggle-small" onclick="toggleLang()" id="lang-toggle">EN</button>
+  </div>
+
+  <div class="profile-setup-header">
+    <div class="setup-icon">👨‍🌾</div>
+    <h2 data-i18n="setup_heading">Tell us about yourself</h2>
+    <p data-i18n="setup_subheading">We will use this to give you better recommendations</p>
+  </div>
+
+  <div class="profile-form">
+    <div class="form-group">
+      <label class="form-label"><span class="label-icon">👤</span> <span data-i18n="farmer_name">Farmer Name</span></label>
+      <input type="text" class="form-input" id="input-name" placeholder="Enter your name" data-i18n-placeholder="name_placeholder">
+    </div>
+    <div class="form-group">
+      <label class="form-label"><span class="label-icon">📍</span> <span data-i18n="village_district">Village / District</span></label>
+      <input type="text" class="form-input" id="input-village" placeholder="Enter village or district" data-i18n-placeholder="village_placeholder">
+    </div>
+    <div class="form-group">
+      <label class="form-label"><span class="label-icon">📐</span> <span data-i18n="land_area">Land Area</span></label>
+      <select class="form-select" id="input-land">
+        <option value="" data-i18n="select_land">Select land area</option>
+        <option value="1-2">1–2 एकड़ / Acres</option>
+        <option value="2-5">2–5 एकड़ / Acres</option>
+        <option value="5-10">5–10 एकड़ / Acres</option>
+        <option value="10+">10+ एकड़ / Acres</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label"><span class="label-icon">🌾</span> <span data-i18n="main_crop">Main Crop</span></label>
+      <select class="form-select" id="input-crop">
+        <option value="" data-i18n="select_crop">Select your main crop</option>
+        <option value="wheat">🌾 Wheat / गेहूं</option>
+        <option value="rice">🌾 Rice / चावल</option>
+        <option value="soybean">🫘 Soybean / सोयाबीन</option>
+        <option value="cotton">🧶 Cotton / कपास</option>
+        <option value="sugarcane">🎋 Sugarcane / गन्ना</option>
+        <option value="maize">🌽 Maize / मक्का</option>
+        <option value="onion">🧅 Onion / प्याज</option>
+        <option value="potato">🥔 Potato / आलू</option>
+        <option value="tomato">🍅 Tomato / टमाटर</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label"><span class="label-icon">💧</span> <span data-i18n="irrigation">Irrigation Type</span></label>
+      <select class="form-select" id="input-irrigation">
+        <option value="" data-i18n="select_irrigation">Select irrigation type</option>
+        <option value="tube-well">🔵 Tube Well / ट्यूबवेल</option>
+        <option value="canal">🏞️ Canal / नहर</option>
+        <option value="drip">💧 Drip / ड्रिप</option>
+        <option value="rain-fed">🌧️ Rain Fed / बारानी</option>
+        <option value="sprinkler">🌊 Sprinkler / स्प्रिंकलर</option>
+      </select>
+    </div>
+
+    <div style="height: 8px"></div>
+    <button class="btn-primary" onclick="saveProfile()" data-i18n="save_continue">
+      💾 Save and Continue
+    </button>
+  </div>
+</div>
+
+<script src="js/i18n.js"></script>
+<script src="js/main.js"></script>
+<script src="js/profile.js"></script>
+</body>
+</html>

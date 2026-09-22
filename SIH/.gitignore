@@ -1,0 +1,30 @@
+# ==============================================================================
+# KRISHI MITRA FRONTEND (SIH) .GITIGNORE
+# ==============================================================================
+
+# Local secret configurations
+js/maps-config.js
+*.local.js
+
+# Environment variables
+.env
+.env.*
+.env.local
+
+# Logs & temp files
+*.log
+npm-debug.log*
+node_modules/
+
+# OS metadata
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# AI and IDE artifacts
+agents.md
+claude.md
+.cursorrules
+.cursor/
+

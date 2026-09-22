@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Krishi Mitra — कृषि मित्र</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/components.css">
+<link rel="stylesheet" href="css/navbar.css">
+<link rel="stylesheet" href="css/responsive.css">
+</head>
+<body>
+
+<!-- ============ TOAST ============ -->
+<div class="toast" id="toast"></div>
+
+<!-- ============ SCREEN 1: LOGIN ============ -->
+<div class="screen active no-nav" id="screen-login">
+  <div class="login-container">
+    <div class="login-logo">
+      <span class="logo-icon">🌾</span>
+      <div class="logo-text">Krishi Mitra</div>
+      <div class="logo-subtext" data-i18n="login_subtitle">कृषि मित्र — Your Farming Companion</div>
+    </div>
+
+    <div class="login-illustration">🧑‍🌾</div>
+
+    <p class="login-tagline" data-i18n="login_tagline">Smart farming decisions for better income</p>
+
+    <!-- Language Selector -->
+    <div class="lang-selector">
+      <button class="lang-btn selected" onclick="setLanguage('hi')" id="lang-hi">🇮🇳 हिंदी</button>
+      <button class="lang-btn" onclick="setLanguage('en')" id="lang-en">🇬🇧 English</button>
+    </div>
+
+    <!-- Phone Login -->
+    <div class="login-form" id="login-phone-step">
+      <div class="form-group">
+        <div class="phone-input-wrapper">
+          <span class="phone-prefix">🇮🇳 +91</span>
+          <input type="tel" class="phone-input" id="phone-input" placeholder="Mobile Number" data-i18n-placeholder="phone_placeholder" maxlength="10" inputmode="numeric" pattern="[0-9]*">
+        </div>
+      </div>
+      <button class="btn-primary" onclick="showOTP()" data-i18n="send_otp">
+        📱 Send OTP
+      </button>
+    </div>
+
+    <!-- OTP Step -->
+    <div class="otp-section hidden" id="login-otp-step">
+      <p class="otp-label" data-i18n="otp_sent">OTP sent to your mobile number</p>
+      <div class="otp-inputs">
+        <input type="tel" class="otp-input" maxlength="1" inputmode="numeric" data-otp aria-label="OTP digit 1">
+        <input type="tel" class="otp-input" maxlength="1" inputmode="numeric" data-otp aria-label="OTP digit 2">
+        <input type="tel" class="otp-input" maxlength="1" inputmode="numeric" data-otp aria-label="OTP digit 3">
+        <input type="tel" class="otp-input" maxlength="1" inputmode="numeric" data-otp aria-label="OTP digit 4">
+      </div>
+      <div class="resend-link" data-i18n="resend_otp">Resend OTP</div>
+      <div class="otp-spacing"></div>
+      <button class="btn-primary" onclick="verifyOTP()" data-i18n="continue">
+        ✅ Continue
+      </button>
+    </div>
+
+    <div class="login-footer" data-i18n="login_footer">
+      By continuing, you agree to our Terms & Conditions
+    </div>
+  </div>
+</div>
+
+<script src="js/i18n.js"></script>
+<script src="js/main.js"></script>
+<script src="js/auth.js"></script>
+</body>
+</html>

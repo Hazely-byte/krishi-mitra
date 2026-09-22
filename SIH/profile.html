@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Profile — Krishi Mitra</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/components.css">
+<link rel="stylesheet" href="css/navbar.css">
+<link rel="stylesheet" href="css/responsive.css">
+</head>
+<body>
+
+<!-- ============ TOAST ============ -->
+<div class="toast" id="toast"></div>
+
+<!-- ============ SCREEN 8: PROFILE ============ -->
+<div class="screen active" id="screen-profile">
+  <div class="profile-header">
+    <div class="profile-avatar-large">👨‍🌾</div>
+    <div class="profile-name" id="profile-display-name">Farmer Name</div>
+    <div class="profile-location" id="profile-display-location">📍 Village, District</div>
+  </div>
+
+  <div class="profile-details">
+    <div class="profile-info-card">
+      <div class="info-title" data-i18n="farm_details">Farm Details</div>
+      <div class="profile-info-item">
+        <span class="info-icon">📐</span>
+        <div class="info-content">
+          <div class="info-label" data-i18n="land_area">Land Area</div>
+          <div class="info-value" id="profile-display-land">5–10 Acres</div>
+        </div>
+      </div>
+      <div class="profile-info-item">
+        <span class="info-icon">🌾</span>
+        <div class="info-content">
+          <div class="info-label" data-i18n="main_crop">Main Crop</div>
+          <div class="info-value" id="profile-display-crop">Soybean</div>
+        </div>
+      </div>
+      <div class="profile-info-item">
+        <span class="info-icon">💧</span>
+        <div class="info-content">
+          <div class="info-label" data-i18n="irrigation">Irrigation</div>
+          <div class="info-value" id="profile-display-irrigation">Tube Well</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="profile-info-card">
+      <div class="info-title" data-i18n="account_info">Account</div>
+      <div class="profile-info-item">
+        <span class="info-icon">📱</span>
+        <div class="info-content">
+          <div class="info-label" data-i18n="phone">Phone</div>
+          <div class="info-value" id="profile-display-phone">+91 98765 43210</div>
+        </div>
+      </div>
+      <div class="profile-info-item">
+        <span class="info-icon">🌐</span>
+        <div class="info-content">
+          <div class="info-label" data-i18n="language">Language</div>
+          <div class="info-value" id="profile-display-lang">हिंदी</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="profile-actions">
+    <button class="profile-action-btn" onclick="window.location.href='profile-setup.html'">
+      <span class="action-icon">✏️</span>
+      <span data-i18n="edit_profile">Edit Profile</span>
+      <span class="action-arrow">→</span>
+    </button>
+    <button class="profile-action-btn">
+      <span class="action-icon">📞</span>
+      <span data-i18n="help_support">Help & Support</span>
+      <span class="action-arrow">→</span>
+    </button>
+    <button class="profile-action-btn">
+      <span class="action-icon">⭐</span>
+      <span data-i18n="rate_app">Rate App</span>
+      <span class="action-arrow">→</span>
+    </button>
+    <button class="profile-action-btn danger" onclick="logout()">
+      <span class="action-icon">🚪</span>
+      <span data-i18n="logout">Logout</span>
+      <span class="action-arrow">→</span>
+    </button>
+  </div>
+</div>
+
+<!-- ============ BOTTOM NAVIGATION ============ -->
+<nav class="bottom-nav" id="bottom-nav">
+  <a class="nav-item" href="home.html" data-nav="home">
+    <span class="nav-icon">🏠</span>
+    <span class="nav-label" data-i18n="nav_home">Home</span>
+  </a>
+  <a class="nav-item" href="crops.html" data-nav="crops">
+    <span class="nav-icon">🌾</span>
+    <span class="nav-label" data-i18n="nav_crops">Crops</span>
+  </a>
+  <a class="nav-item" href="market.html" data-nav="market">
+    <span class="nav-icon">📈</span>
+    <span class="nav-label" data-i18n="nav_market">Market</span>
+  </a>
+  <a class="nav-item" href="ai-help.html" data-nav="ai">
+    <span class="nav-icon">🤖</span>
+    <span class="nav-label" data-i18n="nav_ai">AI Help</span>
+  </a>
+  <a class="nav-item active" href="profile.html" data-nav="profile">
+    <span class="nav-icon">👤</span>
+    <span class="nav-label" data-i18n="nav_profile">Profile</span>
+  </a>
+</nav>
+
+<script src="js/i18n.js"></script>
+<script src="js/main.js"></script>
+<script src="js/profile.js"></script>
+</body>
+</html>

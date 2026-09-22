@@ -1,0 +1,6 @@
+// Example configuration for Google Maps Platform in Krishi Mitra.
+// Copy this file to maps-config.js and insert your valid API key.
+// Never commit maps-config.js with a real key to source control.
+window.GOOGLE_MAPS_CONFIG = {
+  apiKey: 'YOUR_GOOGLE_MAPS_API_KEY_HERE'
+};

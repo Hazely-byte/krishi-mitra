@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Crop Analysis — Krishi Mitra</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/components.css">
+<link rel="stylesheet" href="css/navbar.css">
+<link rel="stylesheet" href="css/responsive.css">
+</head>
+<body>
+
+<!-- ============ TOAST ============ -->
+<div class="toast" id="toast"></div>
+
+<!-- ============ SCREEN 4: CROP ANALYSIS ============ -->
+<div class="screen active" id="screen-crop-analysis">
+  <div class="header-bar">
+    <button class="back-btn" onclick="window.location.href='home.html'">←</button>
+    <span class="header-title" data-i18n="crop_analysis_title">🧠 Crop Analysis</span>
+    <button class="lang-toggle-small" onclick="toggleLang()" id="lang-toggle-analysis">EN</button>
+  </div>
+
+  <!-- Input Form -->
+  <div class="analysis-form-section" id="analysis-form">
+    <div class="form-header">
+      <div class="form-icon">🔍</div>
+      <h3 data-i18n="analyze_heading">Analyze Your Crop</h3>
+      <p data-i18n="analyze_sub">Enter your crop details for smart insights</p>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label"><span class="label-icon">🌾</span> <span data-i18n="crop_name">Crop Name</span></label>
+      <select class="form-select" id="analysis-crop">
+        <option value="" data-i18n="select_crop">Select your crop</option>
+        <option value="wheat">🌾 Wheat / गेहूं</option>
+        <option value="rice">🌾 Rice / चावल</option>
+        <option value="soybean">🫘 Soybean / सोयाबीन</option>
+        <option value="cotton">🧶 Cotton / कपास</option>
+        <option value="onion">🧅 Onion / प्याज</option>
+        <option value="tomato">🍅 Tomato / टमाटर</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label"><span class="label-icon">📦</span> <span data-i18n="expected_production">Expected Production (Quintal)</span></label>
+      <input type="number" class="form-input" id="analysis-production" placeholder="e.g., 50" inputmode="numeric">
+    </div>
+    <div class="form-group">
+      <label class="form-label"><span class="label-icon">📋</span> <span data-i18n="available_qty">Available Quantity (Quintal)</span></label>
+      <input type="number" class="form-input" id="analysis-available" placeholder="e.g., 40" inputmode="numeric">
+    </div>
+    <div class="form-group">
+      <label class="form-label"><span class="label-icon">📅</span> <span data-i18n="harvest_date">Harvest Date</span></label>
+      <input type="date" class="form-input" id="analysis-date">
+    </div>
+    <div class="form-group">
+      <label class="form-label"><span class="label-icon">📍</span> <span data-i18n="location">Location</span></label>
+      <input type="text" class="form-input" id="analysis-location" placeholder="Enter your location" data-i18n-placeholder="location_placeholder">
+    </div>
+
+    <div style="height: 8px"></div>
+    <button class="btn-primary" onclick="analyzeCrop()">
+      🔍 <span data-i18n="analyze_btn">Analyze My Crop</span>
+    </button>
+  </div>
+
+  <!-- Results -->
+  <div class="analysis-results hidden" id="analysis-results">
+    <div class="result-header">
+      <div class="result-icon">✅</div>
+      <h3 data-i18n="analysis_results_title">Analysis Results</h3>
+    </div>
+
+    <div class="result-card highlight">
+      <div class="result-emoji">🟢</div>
+      <div class="result-info">
+        <div class="result-label" data-i18n="market_demand">Market Demand</div>
+        <div class="result-value" data-i18n="demand_high">High</div>
+        <div class="result-sub" data-i18n="demand_sub">Demand is above average this season</div>
+      </div>
+    </div>
+
+    <div class="result-card">
+      <div class="result-emoji">💰</div>
+      <div class="result-info">
+        <div class="result-label" data-i18n="avg_price">Average Market Price</div>
+        <div class="result-value">₹2,500 <span style="font-size:13px;font-weight:500;color:var(--gray-500)" data-i18n="per_quintal">per quintal</span></div>
+        <div class="result-sub" data-i18n="price_up_8">↑ 8% from last week</div>
+      </div>
+    </div>
+
+    <div class="result-card highlight">
+      <div class="result-emoji">📍</div>
+      <div class="result-info">
+        <div class="result-label" data-i18n="best_market">Best Nearby Market</div>
+        <div class="result-value" data-i18n="indore_mandi">Indore Mandi</div>
+        <div class="result-sub" data-i18n="distance_25km">~25 km from your location</div>
+      </div>
+    </div>
+
+    <div class="result-card">
+      <div class="result-emoji">🗺️</div>
+      <div class="result-info">
+        <div class="result-label" data-i18n="high_demand_areas">High Demand Areas</div>
+        <div class="result-value" data-i18n="demand_areas">Indore, Ujjain, Bhopal</div>
+      </div>
+    </div>
+
+    <div class="result-card warning">
+      <div class="result-emoji">⏰</div>
+      <div class="result-info">
+        <div class="result-label" data-i18n="sell_timing">Suggested Selling Time</div>
+        <div class="result-value" data-i18n="next_7_days">Next 7 Days</div>
+        <div class="result-sub" data-i18n="sell_advice">Selling soon may get you the best price</div>
+      </div>
+    </div>
+
+    <div style="height: 12px"></div>
+    <button class="btn-secondary" onclick="showAnalysisForm()">
+      🔄 <span data-i18n="analyze_another">Analyze Another Crop</span>
+    </button>
+  </div>
+</div>
+
+<!-- ============ BOTTOM NAVIGATION ============ -->
+<nav class="bottom-nav" id="bottom-nav">
+  <a class="nav-item" href="home.html" data-nav="home">
+    <span class="nav-icon">🏠</span>
+    <span class="nav-label" data-i18n="nav_home">Home</span>
+  </a>
+  <a class="nav-item" href="crops.html" data-nav="crops">
+    <span class="nav-icon">🌾</span>
+    <span class="nav-label" data-i18n="nav_crops">Crops</span>
+  </a>
+  <a class="nav-item" href="market.html" data-nav="market">
+    <span class="nav-icon">📈</span>
+    <span class="nav-label" data-i18n="nav_market">Market</span>
+  </a>
+  <a class="nav-item" href="ai-help.html" data-nav="ai">
+    <span class="nav-icon">🤖</span>
+    <span class="nav-label" data-i18n="nav_ai">AI Help</span>
+  </a>
+  <a class="nav-item" href="profile.html" data-nav="profile">
+    <span class="nav-icon">👤</span>
+    <span class="nav-label" data-i18n="nav_profile">Profile</span>
+  </a>
+</nav>
+
+<script src="js/i18n.js"></script>
+<script src="js/main.js"></script>
+<script src="js/location.js"></script>
+<script src="js/crop-analysis.js"></script>
+</body>
+</html>

@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Home — Krishi Mitra</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/components.css">
+<link rel="stylesheet" href="css/navbar.css">
+<link rel="stylesheet" href="css/responsive.css">
+</head>
+<body>
+
+<!-- ============ TOAST ============ -->
+<div class="toast" id="toast"></div>
+
+<!-- ============ SCREEN 3: HOME DASHBOARD ============ -->
+<div class="screen active" id="screen-home">
+  <div class="home-greeting">
+    <div class="greeting-text" id="greeting-name">Namaste, Farmer 👋</div>
+    <div class="greeting-sub" data-i18n="greeting_sub">Your farming dashboard</div>
+    <div class="weather-badge">
+      <span>☀️</span>
+      <span>32°C</span>
+      <span>·</span>
+      <span data-i18n="weather_clear">Clear Sky</span>
+    </div>
+  </div>
+
+  <div class="action-cards">
+    <a class="action-card crops" href="crops.html">
+      <div class="card-icon">🌾</div>
+      <div class="card-title" data-i18n="my_crops">My Crops</div>
+      <div class="card-desc" data-i18n="my_crops_desc">View crop info and production</div>
+    </a>
+    <a class="action-card market" href="market.html">
+      <div class="card-icon">📈</div>
+      <div class="card-title" data-i18n="market_prices">Market Prices</div>
+      <div class="card-desc" data-i18n="market_prices_desc">Check prices and trends</div>
+    </a>
+    <a class="action-card analysis" href="crop-analysis.html">
+      <div class="card-icon">🧠</div>
+      <div class="card-title" data-i18n="crop_analysis">Crop Analysis</div>
+      <div class="card-desc" data-i18n="crop_analysis_desc">AI-based recommendations</div>
+    </a>
+    <a class="action-card buyers" href="buyers.html">
+      <div class="card-icon">🤝</div>
+      <div class="card-title" data-i18n="sell_buyers">Sell / Find Buyers</div>
+      <div class="card-desc" data-i18n="sell_buyers_desc">Explore buyer opportunities</div>
+    </a>
+  </div>
+
+  <div class="quick-stats">
+    <div class="section-title">📊 <span data-i18n="quick_overview">Quick Overview</span></div>
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-icon">🌾</div>
+        <div class="stat-value">3</div>
+        <div class="stat-label" data-i18n="active_crops">Active Crops</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">📈</div>
+        <div class="stat-value" style="color:var(--green-600)">+8%</div>
+        <div class="stat-label" data-i18n="price_trend">Price Trend</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">🤝</div>
+        <div class="stat-value">5</div>
+        <div class="stat-label" data-i18n="nearby_buyers">Nearby Buyers</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ BOTTOM NAVIGATION ============ -->
+<nav class="bottom-nav" id="bottom-nav">
+  <a class="nav-item active" href="home.html" data-nav="home">
+    <span class="nav-icon">🏠</span>
+    <span class="nav-label" data-i18n="nav_home">Home</span>
+  </a>
+  <a class="nav-item" href="crops.html" data-nav="crops">
+    <span class="nav-icon">🌾</span>
+    <span class="nav-label" data-i18n="nav_crops">Crops</span>
+  </a>
+  <a class="nav-item" href="market.html" data-nav="market">
+    <span class="nav-icon">📈</span>
+    <span class="nav-label" data-i18n="nav_market">Market</span>
+  </a>
+  <a class="nav-item" href="ai-help.html" data-nav="ai">
+    <span class="nav-icon">🤖</span>
+    <span class="nav-label" data-i18n="nav_ai">AI Help</span>
+  </a>
+  <a class="nav-item" href="profile.html" data-nav="profile">
+    <span class="nav-icon">👤</span>
+    <span class="nav-label" data-i18n="nav_profile">Profile</span>
+  </a>
+</nav>
+
+<script src="js/i18n.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
