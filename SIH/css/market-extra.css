@@ -705,16 +705,23 @@
 .map-wrapper {
   position: relative;
   width: 100%;
-  height: 240px;
+  min-width: 100%;
+  height: 250px;
+  min-height: 250px;
   border-radius: var(--radius-lg);
   overflow: hidden;
   border: 1px solid var(--gray-200);
   background: var(--gray-100);
 }
 
-.mandi-map {
+.mandi-map,
+#mandi-map,
+#buyer-mandi-map {
+  display: block;
   width: 100%;
-  height: 240px; /* Explicit height per CF2 */
+  min-width: 100%;
+  height: 250px;
+  min-height: 250px;
 }
 
 .map-skeleton {

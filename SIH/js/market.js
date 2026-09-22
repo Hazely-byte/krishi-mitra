@@ -790,6 +790,14 @@
     }
     if (modal) {
       modal.classList.add('open');
+      const triggerPostOpenResize = () => {
+        if (mapInstance && window.google?.maps && mandiCoords) {
+          google.maps.event.trigger(mapInstance, 'resize');
+          mapInstance.setCenter(mandiCoords);
+        }
+      };
+      modal.addEventListener('transitionend', triggerPostOpenResize, { once: true });
+      setTimeout(triggerPostOpenResize, 350);
     }
 
     // Resolve initial Mandi coordinates from dictionary
@@ -897,13 +905,17 @@
     });
 
     if (targetTab === 'nav' && mapInstance && window.google && window.google.maps) {
-      setTimeout(() => {
-        google.maps.event.trigger(mapInstance, 'resize');
-        if (currentModalRecord) {
-          const coords = MANDI_COORDINATES[currentModalRecord.market] || MANDI_COORDINATES[currentModalRecord.district] || null;
-          if (coords) mapInstance.setCenter(coords);
+      const recenter = () => {
+        if (mapInstance && window.google?.maps) {
+          google.maps.event.trigger(mapInstance, 'resize');
+          if (currentModalRecord) {
+            const coords = MANDI_COORDINATES[currentModalRecord.market] || MANDI_COORDINATES[currentModalRecord.district] || null;
+            if (coords) mapInstance.setCenter(coords);
+          }
         }
-      }, 60);
+      };
+      recenter();
+      setTimeout(recenter, 220);
     }
   }
 
@@ -990,13 +1002,28 @@
         mapInstance.setZoom(13);
       }
 
-      google.maps.event.trigger(mapInstance, 'resize');
-      setTimeout(() => {
-        if (mapInstance && window.google?.maps) {
+      const recenterMap = () => {
+        if (mapInstance && window.google?.maps && mandiCoords) {
           google.maps.event.trigger(mapInstance, 'resize');
           mapInstance.setCenter(mandiCoords);
         }
-      }, 150);
+      };
+
+      recenterMap();
+      setTimeout(recenterMap, 150);
+      setTimeout(recenterMap, 350);
+
+      if (window.ResizeObserver && mapContainer && !mapContainer._hasResizeObserver) {
+        mapContainer._hasResizeObserver = true;
+        const ro = new ResizeObserver((entries) => {
+          for (const entry of entries) {
+            if (entry.contentRect.width > 0 && entry.contentRect.height > 0) {
+              recenterMap();
+            }
+          }
+        });
+        ro.observe(mapContainer);
+      }
 
       // Clear previous mandi marker
       if (mandiMarker) {

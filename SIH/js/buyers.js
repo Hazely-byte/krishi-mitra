@@ -299,12 +299,16 @@
     });
 
     if (targetTab === 'nav' && mapInstance && window.google?.maps) {
-      setTimeout(() => {
-        google.maps.event.trigger(mapInstance, 'resize');
-        if (activeBuyer?.coords) {
-          mapInstance.setCenter(activeBuyer.coords);
+      const recenter = () => {
+        if (mapInstance && window.google?.maps) {
+          google.maps.event.trigger(mapInstance, 'resize');
+          if (activeBuyer?.coords) {
+            mapInstance.setCenter(activeBuyer.coords);
+          }
         }
-      }, 80);
+      };
+      recenter();
+      setTimeout(recenter, 220);
     }
   }
 
@@ -342,6 +346,14 @@
     }
     if (modalPanel) {
       modalPanel.classList.add('open');
+      const triggerPostOpenResize = () => {
+        if (mapInstance && window.google?.maps && buyer?.coords) {
+          google.maps.event.trigger(mapInstance, 'resize');
+          mapInstance.setCenter(buyer.coords);
+        }
+      };
+      modalPanel.addEventListener('transitionend', triggerPostOpenResize, { once: true });
+      setTimeout(triggerPostOpenResize, 350);
     }
 
     // Render Tab 1 (Map & Nav)
@@ -465,14 +477,27 @@
         mapInstance.setZoom(13);
       }
 
-      if (window.google?.maps && mapInstance) {
-        google.maps.event.trigger(mapInstance, 'resize');
-        setTimeout(() => {
-          if (mapInstance && window.google?.maps) {
-            google.maps.event.trigger(mapInstance, 'resize');
-            mapInstance.setCenter(targetCoords);
+      const recenterMap = () => {
+        if (mapInstance && window.google?.maps && targetCoords) {
+          google.maps.event.trigger(mapInstance, 'resize');
+          mapInstance.setCenter(targetCoords);
+        }
+      };
+
+      recenterMap();
+      setTimeout(recenterMap, 150);
+      setTimeout(recenterMap, 350);
+
+      if (window.ResizeObserver && mapContainer && !mapContainer._hasResizeObserver) {
+        mapContainer._hasResizeObserver = true;
+        const ro = new ResizeObserver((entries) => {
+          for (const entry of entries) {
+            if (entry.contentRect.width > 0 && entry.contentRect.height > 0) {
+              recenterMap();
+            }
           }
-        }, 150);
+        });
+        ro.observe(mapContainer);
       }
 
       if (skeleton) skeleton.classList.add('hidden');
