@@ -991,7 +991,6 @@
         mapInstance = new Map(mapContainer, {
           zoom: 13,
           center: mandiCoords,
-          mapId: '884cdf8ccec29a5374874467', // Cloud-styled Map ID for Krishi Mitra
           mapTypeControl: false,
           streetViewControl: false,
           fullscreenControl: false,

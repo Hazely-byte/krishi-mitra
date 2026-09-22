@@ -16,6 +16,38 @@
     source: 'fallback'
   };
 
+  // Global Google Maps authentication failure handler
+  window.gm_authFailure = function () {
+    console.error('[Google Maps] gm_authFailure: RefererNotAllowedMapError or invalid API key.');
+    const origin = window.location.origin;
+    if (!document.getElementById('gm-suppress-err-style')) {
+      const style = document.createElement('style');
+      style.id = 'gm-suppress-err-style';
+      style.textContent = '.gm-err-container { display: none !important; }';
+      document.head.appendChild(style);
+    }
+    const applyAuthErrorUI = () => {
+      document.querySelectorAll('.map-unavailable-box').forEach(box => {
+        box.classList.remove('hidden');
+        const title = box.querySelector('.map-unavail-title');
+        if (title) title.textContent = 'Google Maps Authorization Error';
+        const desc = box.querySelector('.map-unavail-desc');
+        if (desc) {
+          desc.innerHTML = `Domain <code>${origin}</code> is blocked by HTTP Referrer restrictions on this API key.<br><small style="color:var(--gray-600); display:block; margin-top:4px;">Authorize <code>${origin}/*</code> in Google Cloud Console.</small>`;
+        }
+      });
+      document.querySelectorAll('.map-skeleton').forEach(s => s.classList.add('hidden'));
+      document.querySelectorAll('.mandi-map').forEach(m => {
+        const errBox = m.querySelector('.gm-err-container');
+        if (errBox) errBox.style.display = 'none';
+      });
+    };
+    applyAuthErrorUI();
+    setTimeout(applyAuthErrorUI, 300);
+    setTimeout(applyAuthErrorUI, 1000);
+    setTimeout(applyAuthErrorUI, 2500);
+  };
+
   const listeners = [];
 
   const SESSION_GPS_STATE_KEY = 'krishi_gps_state';
@@ -70,7 +102,12 @@
     if (!apiKey) return null;
 
     if (window._gmapsPromise) return window._gmapsPromise;
+
     window._gmapsPromise = new Promise((resolve) => {
+      if (window.google?.maps) {
+        resolve(window.google.maps);
+        return;
+      }
       if (document.querySelector('script[src*="maps.googleapis.com"]')) {
         let attempts = 0;
         const interval = setInterval(() => {
