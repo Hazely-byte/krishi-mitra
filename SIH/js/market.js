@@ -680,15 +680,29 @@
     });
   }
 
-  function loadGoogleMapsApi() {
+  async function loadGoogleMapsApi() {
     if (googleMapsLoaded && window.google && window.google.maps) {
       return Promise.resolve(window.google.maps);
     }
     if (googleMapsPromise) return googleMapsPromise;
 
-    const apiKey = (window.GOOGLE_MAPS_CONFIG && window.GOOGLE_MAPS_CONFIG.apiKey)
+    let apiKey = (window.GOOGLE_MAPS_CONFIG && window.GOOGLE_MAPS_CONFIG.apiKey)
       ? window.GOOGLE_MAPS_CONFIG.apiKey.trim()
       : '';
+
+    if (!apiKey) {
+      try {
+        const res = await fetch('/api/config/maps');
+        if (res.ok) {
+          const cfg = await res.json();
+          if (cfg && cfg.apiKey) {
+            window.GOOGLE_MAPS_CONFIG = window.GOOGLE_MAPS_CONFIG || {};
+            window.GOOGLE_MAPS_CONFIG.apiKey = cfg.apiKey;
+            apiKey = cfg.apiKey.trim();
+          }
+        }
+      } catch (e) {}
+    }
 
     if (!apiKey) {
       console.warn('[market] No Google Maps API key provided in window.GOOGLE_MAPS_CONFIG.apiKey. Treating as Maps-unavailable.');
@@ -697,7 +711,9 @@
     }
 
     googleMapsPromise = (async () => {
-      initGoogleMapsBootstrap(apiKey);
+      if (!window.google?.maps) {
+        initGoogleMapsBootstrap(apiKey);
+      }
       await safeImportLibrary('maps');
       googleMapsLoaded = true;
       googleMapsLoadError = false;
@@ -975,6 +991,12 @@
       }
 
       google.maps.event.trigger(mapInstance, 'resize');
+      setTimeout(() => {
+        if (mapInstance && window.google?.maps) {
+          google.maps.event.trigger(mapInstance, 'resize');
+          mapInstance.setCenter(mandiCoords);
+        }
+      }, 150);
 
       // Clear previous mandi marker
       if (mandiMarker) {
@@ -983,18 +1005,31 @@
         window.mandiMarker = null;
       }
 
-      const mandiPin = new PinElement({
-        glyphText: '🌾',
-        background: '#16a34a',
-        borderColor: '#14532d'
-      });
+      if (PinElement && AdvancedMarkerElement) {
+        try {
+          const mandiPin = new PinElement({
+            glyphText: '🌾',
+            background: '#16a34a',
+            borderColor: '#14532d'
+          });
 
-      mandiMarker = new AdvancedMarkerElement({
-        map: mapInstance,
-        position: mandiCoords,
-        title: `${mandiRecord.market}, ${mandiRecord.district}`,
-        content: mandiPin
-      });
+          mandiMarker = new AdvancedMarkerElement({
+            map: mapInstance,
+            position: mandiCoords,
+            title: `${mandiRecord.market}, ${mandiRecord.district}`,
+            content: mandiPin
+          });
+        } catch (pinErr) {
+          console.warn('[market] AdvancedMarkerElement failed, falling back to Marker:', pinErr);
+        }
+      }
+      if (!mandiMarker && window.google?.maps?.Marker) {
+        mandiMarker = new window.google.maps.Marker({
+          map: mapInstance,
+          position: mandiCoords,
+          title: `${mandiRecord.market}, ${mandiRecord.district}`
+        });
+      }
       window.mandiMarker = mandiMarker;
 
       // Clear previous user marker
@@ -1006,18 +1041,31 @@
 
       // If user GPS granted, place user marker and calculate route
       if (userLocationState === 'granted' && userCoords) {
-        const userPin = new PinElement({
-          glyphText: '📍',
-          background: '#2563eb',
-          borderColor: '#1d4ed8'
-        });
+        if (PinElement && AdvancedMarkerElement) {
+          try {
+            const userPin = new PinElement({
+              glyphText: '📍',
+              background: '#2563eb',
+              borderColor: '#1d4ed8'
+            });
 
-        userMarker = new AdvancedMarkerElement({
-          map: mapInstance,
-          position: userCoords,
-          title: t.my_crops || 'My Location',
-          content: userPin
-        });
+            userMarker = new AdvancedMarkerElement({
+              map: mapInstance,
+              position: userCoords,
+              title: t.my_crops || 'My Location',
+              content: userPin
+            });
+          } catch (pinErr) {
+            console.warn('[market] AdvancedMarkerElement for user failed, falling back to Marker:', pinErr);
+          }
+        }
+        if (!userMarker && window.google?.maps?.Marker) {
+          userMarker = new window.google.maps.Marker({
+            map: mapInstance,
+            position: userCoords,
+            title: t.my_crops || 'My Location'
+          });
+        }
         window.userMarker = userMarker;
 
         // Fit bounds

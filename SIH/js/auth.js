@@ -28,7 +28,10 @@ function verifyOTP() {
     return;
   }
   // Mock verification — this is a frontend prototype only.
-  window.location.href = 'profile-setup.html';
+  // TEMP-DISABLED: profile enforcement bypass — remove this block to restore
+  // TODO: Re-enable profile enforcement before production
+  // window.location.href = 'profile-setup.html';
+  window.location.href = 'home.html';
 }
 
 // ===== OTP AUTO-ADVANCE =====

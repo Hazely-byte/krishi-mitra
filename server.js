@@ -116,16 +116,24 @@ app.post('/api/location/resolve', async (req, res) => {
   res.json(result);
 });
 
-// Provide dynamic Google Maps configuration from environment variable
-app.get(['/js/maps-config.js', '/SIH/js/maps-config.js'], (req, res) => {
+// Provide dynamic Google Maps configuration from environment variable (with authorized fallback)
+const FALLBACK_MAPS_KEY = 'AIzaSyApqMBu9BZIeflSpEHoz2z-x5EFMKo7w94';
+function getMapsApiKey() {
+  return (process.env.GOOGLE_MAPS_API_KEY && process.env.GOOGLE_MAPS_API_KEY.trim())
+    || (process.env.GOOGLE_MAP_API_KEY && process.env.GOOGLE_MAP_API_KEY.trim())
+    || (process.env.MAPS_API_KEY && process.env.MAPS_API_KEY.trim())
+    || FALLBACK_MAPS_KEY;
+}
+
+app.get(['/js/maps-config.js', '/SIH/js/maps-config.js', '/maps-config.js', /.*maps-config\.js$/], (req, res) => {
   res.type('application/javascript');
-  const apiKey = process.env.GOOGLE_MAPS_API_KEY || '';
+  const apiKey = getMapsApiKey();
   res.send(`window.GOOGLE_MAPS_CONFIG = { apiKey: '${apiKey}' };\n`);
 });
 
 // REST config endpoint for maps
 app.get('/api/config/maps', (req, res) => {
-  res.json({ apiKey: process.env.GOOGLE_MAPS_API_KEY || '' });
+  res.json({ apiKey: getMapsApiKey() });
 });
 
 // Root serves teammates' SIH frontend

@@ -86,7 +86,7 @@
       }
 
       const script = document.createElement('script');
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,geometry`;
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,geometry,marker,geocoding`;
       script.async = true;
       script.defer = true;
       script.onload = () => {
@@ -463,6 +463,16 @@
       } else if (mapInstance) {
         mapInstance.setCenter(targetCoords);
         mapInstance.setZoom(13);
+      }
+
+      if (window.google?.maps && mapInstance) {
+        google.maps.event.trigger(mapInstance, 'resize');
+        setTimeout(() => {
+          if (mapInstance && window.google?.maps) {
+            google.maps.event.trigger(mapInstance, 'resize');
+            mapInstance.setCenter(targetCoords);
+          }
+        }, 150);
       }
 
       if (skeleton) skeleton.classList.add('hidden');
