@@ -141,6 +141,64 @@ function initSchema(db) {
   } catch (e) {
     // Ignore normalization errors
   }
+
+  // Auto-seed baseline records if table is empty (e.g. cold start on Render)
+  try {
+    const countRow = db.prepare('SELECT COUNT(*) AS cnt FROM mandi_prices').get();
+    if (!countRow || countRow.cnt === 0) {
+      const seedFile = path.join(__dirname, 'seed-mandi-prices.json');
+      if (fs.existsSync(seedFile)) {
+        const seedRaw = JSON.parse(fs.readFileSync(seedFile, 'utf-8'));
+        const insertStmt = db.prepare(`
+          INSERT OR IGNORE INTO mandi_prices (state, district, market, commodity, variety, grade, arrival_date, min_price, max_price, modal_price, fetched_at, source)
+          VALUES (@state, @district, @market, @commodity, @variety, @grade, @arrival_date, @min_price, @max_price, @modal_price, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), 'data.gov.in')
+        `);
+        const insertCommStmt = db.prepare(`
+          INSERT INTO commodities (name_api, name_en, name_hi, category)
+          VALUES (@name_api, @name_en, @name_hi, @category)
+          ON CONFLICT(name_api) DO NOTHING
+        `);
+
+        const insertMany = db.transaction((records) => {
+          for (const raw of records) {
+            let date = raw.arrival_date;
+            if (date && date.includes('/')) {
+              const parts = date.split('/');
+              if (parts.length === 3) date = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+            }
+            const modal = parseFloat(raw.modal_price) || 0;
+            const min = parseFloat(raw.min_price) || modal;
+            const max = parseFloat(raw.max_price) || modal;
+            const comm = (raw.commodity || '').trim();
+            if (modal > 0 && date && comm) {
+              insertStmt.run({
+                state: (raw.state || '').trim(),
+                district: (raw.district || '').trim(),
+                market: (raw.market || '').trim(),
+                commodity: comm,
+                variety: (raw.variety || '').trim(),
+                grade: (raw.grade || '').trim(),
+                arrival_date: date,
+                min_price: min,
+                max_price: max,
+                modal_price: modal
+              });
+              insertCommStmt.run({
+                name_api: comm,
+                name_en: comm,
+                name_hi: comm,
+                category: 'Other'
+              });
+            }
+          }
+        });
+        insertMany(seedRaw);
+        console.log(`[db] Auto-seeded ${seedRaw.length} baseline mandi records from seed-mandi-prices.json`);
+      }
+    }
+  } catch (seedErr) {
+    console.warn('[db] Failed to auto-seed baseline mandi records:', seedErr.message);
+  }
 }
 
 // Prepared statements cache

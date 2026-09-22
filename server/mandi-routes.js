@@ -8,23 +8,27 @@ const haversine = require('./haversine');
 
 const router = express.Router();
 
-// Auto-trigger background MandiPulse sync on first request or if sparse
-let initialMandiPulseSyncDone = false;
+// Auto-trigger background target data sync on first request or if sparse
+let initialTargetSyncDone = false;
 
-async function ensureMandiPulseData(force = false) {
-  if (force || !initialMandiPulseSyncDone) {
-    initialMandiPulseSyncDone = true;
+async function ensureTargetData(force = false) {
+  if (force || !initialTargetSyncDone) {
+    initialTargetSyncDone = true;
     try {
+      const apiKey = process.env.DATA_GOV_API_KEY;
+      if (apiKey) {
+        await mandi.syncChattisgarh(apiKey);
+      }
       if (force) mandipulse.bustCache();
       await mandipulse.syncMandiPulseToDb(db);
     } catch (e) {
-      console.warn('[mandi-routes] MandiPulse sync error:', e.message);
+      console.warn('[mandi-routes] Target sync error:', e.message);
     }
   }
 }
 
 // Background initial sync
-ensureMandiPulseData();
+ensureTargetData();
 
 /**
  * GET /api/mandi
@@ -43,15 +47,18 @@ router.get('/', async (req, res) => {
   const forceRefresh = req.query.refresh === '1' || req.query.refresh === 'true';
 
   if (forceRefresh) {
-    await ensureMandiPulseData(true);
+    await ensureTargetData(true);
   }
 
   let result = db.getMarketPricesRadius({ lat, lng, maxRadiusKm: radius, query: q, category });
 
-  // If records are sparse (< 5), trigger MandiPulse fallback immediately and re-query
-  if (result.count < 5 && !forceRefresh) {
-    console.log(`[mandi-routes] Low commodity count (${result.count}), triggering MandiPulse fallback...`);
-    await ensureMandiPulseData(true);
+  // If records are sparse (< 5) or requested district has 0 records, trigger targeted sync immediately and re-query
+  const targetDistrictRecords = result.records.filter(r => (r.district || '').toLowerCase() === district.toLowerCase());
+  const needsFallback = result.count < 5 || (targetDistrictRecords.length === 0 && !q);
+
+  if (needsFallback && !forceRefresh) {
+    console.log(`[mandi-routes] Sparse total count (${result.count}) or missing ${district} records (${targetDistrictRecords.length}), triggering targeted sync...`);
+    await ensureTargetData(true);
     result = db.getMarketPricesRadius({ lat, lng, maxRadiusKm: radius, query: q, category });
   }
 

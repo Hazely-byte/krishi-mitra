@@ -124,7 +124,10 @@
     'Banana': '🍌',
     'Mango': '🥭',
     'Apple': '🍎',
-    'Garlic': '🧄'
+    'Garlic': '🧄',
+    'Lak(Teora)': '🫘',
+    'Ambady/Mesta/Patson': '🧶',
+    'Patson': '🧶'
   };
 
   function getCropEmoji(commodity, category) {

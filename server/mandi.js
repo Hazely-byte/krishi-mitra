@@ -30,6 +30,7 @@ const COMMODITY_MAP = {
   'Rice': { en: 'Rice', hi: 'चावल', category: 'Cereal' },
   'Paddy(Dhan)(Common)': { en: 'Paddy (Common)', hi: 'धान (सामान्य)', category: 'Cereal' },
   'Paddy(Common)': { en: 'Paddy (Common)', hi: 'धान (सामान्य)', category: 'Cereal' },
+  'Paddy (Common)': { en: 'Paddy (Common)', hi: 'धान (सामान्य)', category: 'Cereal' },
   'Paddy(Dhan)(Basmati)': { en: 'Paddy (Basmati)', hi: 'धान (बासमती)', category: 'Cereal' },
   'Maize': { en: 'Maize', hi: 'मक्का', category: 'Cereal' },
   'Jowar(Sorghum)': { en: 'Sorghum', hi: 'ज्वार', category: 'Cereal' },
@@ -55,6 +56,9 @@ const COMMODITY_MAP = {
   'Urad (Blackgram)(Whole)': { en: 'Black Gram (Whole)', hi: 'उड़द (साबुत)', category: 'Pulse' },
   'Urad Dal(Blackgram Dal)': { en: 'Urad Dal', hi: 'उड़द दाल', category: 'Pulse' },
   'Lentil (Masur)(Whole)': { en: 'Lentil (Whole)', hi: 'मसूर (साबुत)', category: 'Pulse' },
+  'Lak(Teora)': { en: 'Lak / Teora (Grass Pea)', hi: 'लाख / तिवड़ा दाल', category: 'Pulse' },
+  'Ambady/Mesta/Patson': { en: 'Mesta / Patson', hi: 'पटसन / मेस्ता', category: 'Fibre' },
+  'Patson': { en: 'Mesta / Patson', hi: 'पटसन / मेस्ता', category: 'Fibre' },
 
   'Tomato': { en: 'Tomato', hi: 'टमाटर', category: 'Vegetable' },
   'Onion': { en: 'Onion', hi: 'प्याज', category: 'Vegetable' },
@@ -131,7 +135,8 @@ const COMMODITY_EMOJI = {
   'Maize': '🌽', 'Banana': '🍌', 'Mango': '🥭',
   'Apple': '🍎', 'Watermelon': '🍉', 'Grapes': '🍇',
   'Orange': '🍊', 'Lemon': '🍋', 'Garlic': '🧄',
-  'Carrot': '🥕', 'Pumpkin': '🎃'
+  'Carrot': '🥕', 'Pumpkin': '🎃', 'Lak(Teora)': '🫘',
+  'Ambady/Mesta/Patson': '🧶', 'Patson': '🧶'
 };
 
 function getEmoji(commodity, category) {
@@ -175,12 +180,17 @@ function normalizeRecord(raw) {
   };
 }
 
-async function fetchPage(apiKey, { offset = 0, limit = PAGE_SIZE } = {}, retries = MAX_RETRIES) {
+async function fetchPage(apiKey, { offset = 0, limit = PAGE_SIZE, filters = {} } = {}, retries = MAX_RETRIES) {
   const url = new URL(`${API_BASE}/${RESOURCE_ID}`);
   url.searchParams.set('api-key', apiKey);
   url.searchParams.set('format', 'json');
   url.searchParams.set('limit', String(limit));
   url.searchParams.set('offset', String(offset));
+  for (const [key, val] of Object.entries(filters)) {
+    if (val !== undefined && val !== null && val !== '') {
+      url.searchParams.set(`filters[${key}]`, String(val));
+    }
+  }
 
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
@@ -206,14 +216,70 @@ async function fetchPage(apiKey, { offset = 0, limit = PAGE_SIZE } = {}, retries
   }
 }
 
+/**
+ * Fetch targeted feed by filters (e.g. { state: 'Chattisgarh' } or { district: 'Raipur' })
+ */
+async function fetchTargetFeed(apiKey, filters = { state: 'Chattisgarh' }) {
+  const allRecords = [];
+  let offset = 0;
+  const limit = 500;
+  let total = null;
+
+  while (true) {
+    const data = await fetchPage(apiKey, { offset, limit, filters });
+    if (total === null) total = data.total;
+    if (!data.records || data.records.length === 0) break;
+    allRecords.push(...data.records);
+    offset += data.records.length;
+    if (offset >= total) break;
+    await new Promise(r => setTimeout(r, 100));
+  }
+
+  return { records: allRecords, total: total || allRecords.length };
+}
+
+/**
+ * Directly sync Chhattisgarh records (including Raipur APMC, Arang, Abhanpur)
+ * Guaranteed to fetch in 1 request without risk of pagination cutoffs.
+ */
+async function syncChattisgarh(apiKey) {
+  try {
+    console.log('[mandi] Fetching targeted Chhattisgarh feed from data.gov.in...');
+    const { records, total } = await fetchTargetFeed(apiKey, { state: 'Chattisgarh' });
+    console.log(`[mandi] Received ${records.length} Chhattisgarh records from data.gov.in (total: ${total})`);
+
+    const normalized = [];
+    let raipurCount = 0;
+    for (const raw of records) {
+      const norm = normalizeRecord(raw);
+      if (norm) {
+        normalized.push(norm);
+        if ((norm.district || '').toLowerCase() === 'raipur') raipurCount++;
+      }
+    }
+
+    if (normalized.length > 0) {
+      populateCommodities(normalized);
+      const upserted = db.upsertPriceMany(normalized);
+      console.log(`[mandi] Successfully upserted ${upserted} targeted Chhattisgarh records into DB (Raipur: ${raipurCount})`);
+      return { success: true, count: upserted, raipur_count: raipurCount };
+    }
+    return { success: true, count: 0, raipur_count: 0 };
+  } catch (err) {
+    console.warn('[mandi] Targeted Chhattisgarh sync failed:', err.message);
+    return { success: false, error: err.message };
+  }
+}
+
 async function fetchNationalFeed(apiKey) {
   const allRecords = [];
   const limit = 5000;
   let offset = 0;
   let total = null;
+  const MAX_RECORDS = 25000;
 
-  while (offset < 10000) {
-    const fetchLimit = Math.min(limit, 10000 - offset);
+  while (offset < MAX_RECORDS) {
+    const fetchLimit = Math.min(limit, MAX_RECORDS - offset);
     if (fetchLimit <= 0) break;
     const data = await fetchPage(apiKey, { offset, limit: fetchLimit });
     if (total === null) total = data.total;
@@ -296,6 +362,10 @@ async function syncNational(apiKey) {
 
   try {
     console.log(`[mandi] Starting national sync at ${startedAt}...`);
+
+    // 1. ALWAYS sync targeted Chhattisgarh first so local data is guaranteed immediately!
+    await syncChattisgarh(apiKey);
+
     const { records, total } = await fetchNationalFeed(apiKey);
     console.log(`[mandi] Received ${records.length} records from national feed (total in API: ${total})`);
 
@@ -368,7 +438,10 @@ function needsSync() {
   const last = db.getLastSync();
   if (!last) return true;
   const elapsed = Date.now() - new Date(last.finished_at + 'Z').getTime();
-  return elapsed > SYNC_INTERVAL_MS;
+  if (elapsed > SYNC_INTERVAL_MS) return true;
+  const meta = db.getSyncMeta('Raipur');
+  if (!meta || meta.row_count === 0) return true;
+  return false;
 }
 
 async function manualRefresh(apiKey) {
@@ -401,7 +474,7 @@ function startPeriodicSync(apiKey) {
 }
 
 module.exports = {
-  syncNational, syncAll: syncNational, needsSync, manualRefresh,
+  syncNational, syncAll: syncNational, syncChattisgarh, needsSync, manualRefresh,
   startPeriodicSync, COMMODITY_MAP, COMMODITY_EMOJI, getEmoji,
   parseArrivalDate, normalizeRecord, populateCommodities,
   get lastRefreshTime() { return lastRefreshTime; }

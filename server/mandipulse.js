@@ -180,20 +180,25 @@ async function syncMandiPulseToDb(db) {
         fetched_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
     `);
 
+    const { COMMODITY_MAP } = require('./mandi');
     const upsertCommodityStmt = dbInst.prepare(`
       INSERT INTO commodities (name_api, name_en, name_hi, category)
       VALUES (@name_api, @name_en, @name_hi, @category)
-      ON CONFLICT(name_api) DO NOTHING
+      ON CONFLICT(name_api) DO UPDATE SET
+        name_en = CASE WHEN excluded.category != 'Other' THEN excluded.name_en ELSE commodities.name_en END,
+        name_hi = CASE WHEN excluded.category != 'Other' THEN excluded.name_hi ELSE commodities.name_hi END,
+        category = CASE WHEN excluded.category != 'Other' THEN excluded.category ELSE commodities.category END
     `);
 
     const tx = dbInst.transaction((rows) => {
       for (const row of rows) {
-        // Ensure commodity is registered
+        // Ensure commodity is registered with mapping if available
+        const map = COMMODITY_MAP[row.commodity] || COMMODITY_MAP[row.commodity.replace(/\s+/g, '')];
         upsertCommodityStmt.run({
           name_api: row.commodity,
-          name_en: row.commodity,
-          name_hi: row.commodity,
-          category: 'Other'
+          name_en: map ? map.en : row.commodity,
+          name_hi: map ? map.hi : row.commodity,
+          category: map ? map.category : 'Other'
         });
 
         const res = insertStmt.run(row);
