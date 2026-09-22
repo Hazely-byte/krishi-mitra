@@ -43,23 +43,29 @@
           <input type="tel" class="phone-input" id="phone-input" placeholder="Mobile Number" data-i18n-placeholder="phone_placeholder" maxlength="10" inputmode="numeric" pattern="[0-9]*">
         </div>
       </div>
-      <button class="btn-primary" onclick="showOTP()" data-i18n="send_otp">
+      <div id="recaptcha-container" style="display:flex; justify-content:center; margin-bottom:12px;"></div>
+      <button class="btn-primary" id="btn-send-otp" onclick="showOTP()" data-i18n="send_otp">
         📱 Send OTP
       </button>
     </div>
 
     <!-- OTP Step -->
     <div class="otp-section hidden" id="login-otp-step">
-      <p class="otp-label" data-i18n="otp_sent">OTP sent to your mobile number</p>
+      <p class="otp-label" id="otp-phone-display" data-i18n="otp_sent">OTP sent to your mobile number</p>
       <div class="otp-inputs">
-        <input type="tel" class="otp-input" maxlength="1" inputmode="numeric" data-otp aria-label="OTP digit 1">
+        <input type="tel" class="otp-input" maxlength="1" inputmode="numeric" data-otp aria-label="OTP digit 1" autocomplete="one-time-code">
         <input type="tel" class="otp-input" maxlength="1" inputmode="numeric" data-otp aria-label="OTP digit 2">
         <input type="tel" class="otp-input" maxlength="1" inputmode="numeric" data-otp aria-label="OTP digit 3">
         <input type="tel" class="otp-input" maxlength="1" inputmode="numeric" data-otp aria-label="OTP digit 4">
+        <input type="tel" class="otp-input" maxlength="1" inputmode="numeric" data-otp aria-label="OTP digit 5">
+        <input type="tel" class="otp-input" maxlength="1" inputmode="numeric" data-otp aria-label="OTP digit 6">
       </div>
-      <div class="resend-link" data-i18n="resend_otp">Resend OTP</div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin:8px 0 16px 0;">
+        <span class="resend-link" id="btn-change-phone" onclick="changePhoneNumber()" style="font-size:13px; color:var(--gray-600); cursor:pointer;">✏️ Change Number</span>
+        <span class="resend-link" id="btn-resend-otp" onclick="resendOTP()" data-i18n="resend_otp">Resend OTP</span>
+      </div>
       <div class="otp-spacing"></div>
-      <button class="btn-primary" onclick="verifyOTP()" data-i18n="continue">
+      <button class="btn-primary" id="btn-verify-otp" onclick="verifyOTP()" data-i18n="continue">
         ✅ Continue
       </button>
     </div>
@@ -70,6 +76,9 @@
   </div>
 </div>
 
+<script src="/js/firebase-config.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="js/i18n.js"></script>
 <script src="js/main.js"></script>
 <script src="js/auth.js"></script>
