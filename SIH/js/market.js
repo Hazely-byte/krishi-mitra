@@ -658,30 +658,8 @@
     });
   }
 
-  function initGoogleMapsBootstrap(apiKey) {
-    ((g) => {
-      var h, a, k, p = "The Google Maps JavaScript API", c = "google", l = "importLibrary", q = "__ib__", m = document, b = window;
-      b[c] = b[c] || {};
-      var d = b[c].maps = b[c].maps || {}, r = new Set, e = new URLSearchParams, u = () => h || (h = new Promise(async (f, n) => {
-        await (a = m.createElement("script"));
-        e.set("libraries", [...r] + "");
-        for (k in g) e.set(k.replace(/[A-Z]/g, t => "_" + t[0].toLowerCase()), g[k]);
-        e.set("callback", c + ".maps." + q);
-        a.src = `https://maps.${c}apis.com/maps/api/js?` + e;
-        d[q] = f;
-        a.onerror = () => h = n(Error(p + " could not load."));
-        a.nonce = m.querySelector("script[nonce]")?.nonce || "";
-        m.head.append(a);
-      }));
-      d[l] ? console.warn(p + " only loads once. Ignoring:", g) : d[l] = (f, ...n) => r.add(f) && u().then(() => d[l](f, ...n));
-    })({
-      key: apiKey,
-      v: "weekly"
-    });
-  }
-
   async function loadGoogleMapsApi() {
-    if (googleMapsLoaded && window.google && window.google.maps) {
+    if (googleMapsLoaded && window.google?.maps) {
       return Promise.resolve(window.google.maps);
     }
     if (googleMapsPromise) return googleMapsPromise;
@@ -705,57 +683,45 @@
     }
 
     if (!apiKey) {
-      console.warn('[market] No Google Maps API key provided in window.GOOGLE_MAPS_CONFIG.apiKey. Treating as Maps-unavailable.');
+      console.warn('[market] No Google Maps API key provided. Maps unavailable.');
       googleMapsLoadError = true;
       return Promise.reject(new Error('MISSING_API_KEY'));
     }
 
-    googleMapsPromise = (async () => {
-      if (!window.google?.maps) {
-        initGoogleMapsBootstrap(apiKey);
+    googleMapsPromise = new Promise((resolve, reject) => {
+      if (document.querySelector('script[src*="maps.googleapis.com"]')) {
+        let attempts = 0;
+        const interval = setInterval(() => {
+          attempts++;
+          if (window.google?.maps) {
+            clearInterval(interval);
+            googleMapsLoaded = true;
+            resolve(window.google.maps);
+          } else if (attempts > 50) {
+            clearInterval(interval);
+            googleMapsLoadError = true;
+            reject(new Error('MAPS_LOAD_TIMEOUT'));
+          }
+        }, 100);
+        return;
       }
-      await safeImportLibrary('maps');
-      googleMapsLoaded = true;
-      googleMapsLoadError = false;
-      return window.google.maps;
-    })().catch((err) => {
-      console.error('[market] Failed to load Google Maps JS API:', err);
-      googleMapsLoadError = true;
-      googleMapsPromise = null;
-      throw err;
+
+      const script = document.createElement('script');
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,geometry,marker,geocoding`;
+      script.async = true;
+      script.defer = true;
+      script.onload = () => {
+        googleMapsLoaded = true;
+        resolve(window.google.maps);
+      };
+      script.onerror = (e) => {
+        googleMapsLoadError = true;
+        reject(e);
+      };
+      document.head.appendChild(script);
     });
 
     return googleMapsPromise;
-  }
-
-  async function safeImportLibrary(name) {
-    if (window.google?.maps?.importLibrary) {
-      try {
-        return await window.google.maps.importLibrary(name);
-      } catch (err) {
-        console.warn(`[market] importLibrary("${name}") call failed, checking global fallback:`, err);
-      }
-    }
-    if (window.google?.maps) {
-      if (name === 'maps') return { Map: window.google.maps.Map };
-      if (name === 'marker') return {
-        AdvancedMarkerElement: window.google.maps.marker?.AdvancedMarkerElement,
-        PinElement: window.google.maps.marker?.PinElement
-      };
-      if (name === 'routes') return {
-        DirectionsService: window.google.maps.DirectionsService,
-        DirectionsRenderer: window.google.maps.DirectionsRenderer
-      };
-      if (name === 'places') return {
-        Place: window.google.maps.places?.Place,
-        PlacesService: window.google.maps.places?.PlacesService
-      };
-      if (name === 'core') return {
-        LatLng: window.google.maps.LatLng,
-        LatLngBounds: window.google.maps.LatLngBounds
-      };
-    }
-    throw new Error(`Google Maps library "${name}" is unavailable`);
   }
 
   // ============================================================
@@ -983,20 +949,19 @@
         return;
       }
 
-      const { Map } = await safeImportLibrary('maps');
-      const { AdvancedMarkerElement, PinElement } = await safeImportLibrary('marker');
+      const mapOptions = {
+        zoom: 13,
+        center: mandiCoords,
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: false,
+        zoomControl: true
+      };
 
       // Initialize map instance if not existing
-      if (!mapInstance) {
-        mapInstance = new Map(mapContainer, {
-          zoom: 13,
-          center: mandiCoords,
-          mapTypeControl: false,
-          streetViewControl: false,
-          fullscreenControl: false,
-          internalUsageAttributionIds: ['gmp_git_agentskills_v1']
-        });
-      } else {
+      if (!mapInstance && mapContainer) {
+        mapInstance = new google.maps.Map(mapContainer, mapOptions);
+      } else if (mapInstance) {
         mapInstance.setCenter(mandiCoords);
         mapInstance.setZoom(13);
       }
@@ -1026,138 +991,76 @@
 
       // Clear previous mandi marker
       if (mandiMarker) {
-        mandiMarker.map = null;
+        if (typeof mandiMarker.setMap === 'function') mandiMarker.setMap(null);
+        else mandiMarker.map = null;
         mandiMarker = null;
         window.mandiMarker = null;
       }
 
-      if (PinElement && AdvancedMarkerElement) {
-        try {
-          const mandiPin = new PinElement({
-            glyphText: '🌾',
-            background: '#16a34a',
-            borderColor: '#14532d'
-          });
-
-          mandiMarker = new AdvancedMarkerElement({
-            map: mapInstance,
-            position: mandiCoords,
-            title: `${mandiRecord.market}, ${mandiRecord.district}`,
-            content: mandiPin
-          });
-        } catch (pinErr) {
-          console.warn('[market] AdvancedMarkerElement failed, falling back to Marker:', pinErr);
-        }
-      }
-      if (!mandiMarker && window.google?.maps?.Marker) {
+      if (window.google?.maps?.Marker) {
         mandiMarker = new window.google.maps.Marker({
           map: mapInstance,
           position: mandiCoords,
           title: `${mandiRecord.market}, ${mandiRecord.district}`
         });
+        window.mandiMarker = mandiMarker;
       }
-      window.mandiMarker = mandiMarker;
 
       // Clear previous user marker
       if (userMarker) {
-        userMarker.map = null;
+        if (typeof userMarker.setMap === 'function') userMarker.setMap(null);
+        else userMarker.map = null;
         userMarker = null;
         window.userMarker = null;
       }
 
       // If user GPS granted, place user marker and calculate route
       if (userLocationState === 'granted' && userCoords) {
-        if (PinElement && AdvancedMarkerElement) {
-          try {
-            const userPin = new PinElement({
-              glyphText: '📍',
-              background: '#2563eb',
-              borderColor: '#1d4ed8'
-            });
-
-            userMarker = new AdvancedMarkerElement({
-              map: mapInstance,
-              position: userCoords,
-              title: t.my_crops || 'My Location',
-              content: userPin
-            });
-          } catch (pinErr) {
-            console.warn('[market] AdvancedMarkerElement for user failed, falling back to Marker:', pinErr);
-          }
-        }
-        if (!userMarker && window.google?.maps?.Marker) {
+        if (window.google?.maps?.Marker) {
           userMarker = new window.google.maps.Marker({
             map: mapInstance,
             position: userCoords,
             title: t.my_crops || 'My Location'
           });
+          window.userMarker = userMarker;
         }
-        window.userMarker = userMarker;
 
         // Fit bounds
-        const { LatLngBounds } = await safeImportLibrary('core');
-        const bounds = new LatLngBounds();
-        bounds.extend(mandiCoords);
-        bounds.extend(userCoords);
-        mapInstance.fitBounds(bounds, { top: 40, bottom: 40, left: 40, right: 40 });
+        if (window.google?.maps?.LatLngBounds) {
+          const bounds = new window.google.maps.LatLngBounds();
+          bounds.extend(mandiCoords);
+          bounds.extend(userCoords);
+          mapInstance.fitBounds(bounds, { top: 40, bottom: 40, left: 40, right: 40 });
+        }
 
         if (gpsNoticeBox) gpsNoticeBox.classList.add('hidden');
         if (routeDistEl) routeDistEl.textContent = t.distance_calculating || 'Calculating...';
         if (routeDurEl) routeDurEl.textContent = '';
 
         try {
-          const routesLib = await safeImportLibrary('routes');
-          let distanceText = '';
-          let durationText = '';
-
-          // Prefer modern Routes API: Route.computeRoutes
-          if (routesLib.Route && typeof routesLib.Route.computeRoutes === 'function') {
-            try {
-              const res = await routesLib.Route.computeRoutes({
-                origin: userCoords,
-                destination: mandiCoords,
-                travelMode: 'DRIVING',
-                fields: ['distanceMeters', 'durationMillis']
-              });
-              if (res && res.routes && res.routes.length > 0) {
-                const route = res.routes[0];
-                if (typeof route.distanceMeters === 'number') {
-                  const km = (route.distanceMeters / 1000).toFixed(1);
-                  distanceText = `${km} km`;
-                }
-                if (typeof route.durationMillis === 'number') {
-                  const totalMins = Math.round(route.durationMillis / 60000);
-                  if (totalMins >= 60) {
-                    const hrs = Math.floor(totalMins / 60);
-                    const remMins = totalMins % 60;
-                    durationText = remMins > 0 ? `${hrs} hr ${remMins} min` : `${hrs} hr`;
-                  } else {
-                    durationText = `${totalMins} min`;
-                  }
-                }
+          if (window.google?.maps?.DirectionsService && window.google?.maps?.DirectionsRenderer) {
+            const directionsService = new window.google.maps.DirectionsService();
+            const directionsRenderer = new window.google.maps.DirectionsRenderer({
+              map: mapInstance,
+              suppressMarkers: false,
+              polylineOptions: {
+                strokeColor: '#16a34a',
+                strokeWeight: 5
               }
-            } catch (computeErr) {
-              console.warn('[market] Route.computeRoutes error, falling back to DirectionsService:', computeErr);
-            }
-          }
-
-          if (distanceText && durationText) {
-            if (routeDistEl) routeDistEl.textContent = distanceText;
-            if (routeDurEl) routeDurEl.textContent = durationText;
-          } else if (routesLib.DirectionsService) {
-            // Fallback to DirectionsService
-            const directionsService = new routesLib.DirectionsService();
-            const travelModeDriving = (window.google?.maps?.TravelMode?.DRIVING) || 'DRIVING';
+            });
 
             directionsService.route({
               origin: userCoords,
               destination: mandiCoords,
-              travelMode: travelModeDriving
-            }, (result, status) => {
-              if (status === 'OK' && result && result.routes && result.routes.length > 0) {
-                const leg = result.routes[0].legs[0];
-                if (routeDistEl) routeDistEl.textContent = leg.distance.text;
-                if (routeDurEl) routeDurEl.textContent = leg.duration.text;
+              travelMode: window.google.maps.TravelMode?.DRIVING || 'DRIVING'
+            }, (res, status) => {
+              if (status === 'OK' && res && res.routes && res.routes.length > 0) {
+                directionsRenderer.setDirections(res);
+                const leg = res.routes[0].legs[0];
+                if (leg) {
+                  if (routeDistEl) routeDistEl.textContent = leg.distance.text;
+                  if (routeDurEl) routeDurEl.textContent = leg.duration.text;
+                }
               } else {
                 const km = calculateHaversineDistanceKm(userCoords.lat, userCoords.lng, mandiCoords.lat, mandiCoords.lng);
                 if (routeDistEl) routeDistEl.textContent = `~${Math.round(km)} km`;
@@ -1231,27 +1134,27 @@
     let placeFound = null;
 
     try {
-      if (window.google && window.google.maps) {
-        const { Place } = await safeImportLibrary('places');
+      if (window.google?.maps?.places?.PlacesService) {
+        const dummyDiv = document.createElement('div');
+        const service = new window.google.maps.places.PlacesService(dummyDiv);
         const query = `${mandiRecord.market} APMC ${mandiRecord.district} ${mandiRecord.state}`;
-        const res = await Place.searchByText({
-          textQuery: query,
-          fields: ['displayName', 'formattedAddress', 'nationalPhoneNumber', 'regularOpeningHours', 'location']
-        });
-
-        if (res && res.places && res.places.length > 0) {
-          placeFound = res.places[0];
-          // If we got coordinates from Places API and didn't have them, update
-          if (!mandiCoords && placeFound.location) {
-            mandiCoords = {
-              lat: typeof placeFound.location.lat === 'function' ? placeFound.location.lat() : placeFound.location.lat,
-              lng: typeof placeFound.location.lng === 'function' ? placeFound.location.lng() : placeFound.location.lng
-            };
+        service.textSearch({ query }, (results, status) => {
+          if (status === window.google.maps.places.PlacesServiceStatus.OK && results && results.length > 0) {
+            placeFound = results[0];
+            if (addressEl && placeFound.formatted_address) {
+              addressEl.textContent = placeFound.formatted_address;
+            }
+            if (!mandiCoords && placeFound.geometry?.location) {
+              mandiCoords = {
+                lat: placeFound.geometry.location.lat(),
+                lng: placeFound.geometry.location.lng()
+              };
+            }
           }
-        }
+        });
       }
     } catch (placeErr) {
-      console.warn('[market] Places API Place Details error:', placeErr);
+      console.warn('[market] Places API error:', placeErr);
     }
 
     if (contactSkeleton) contactSkeleton.style.display = 'none';
