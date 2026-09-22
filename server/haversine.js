@@ -13,13 +13,13 @@ const MANDI_COORDS = {
   // Raipur District
   'Neora APMC': { lat: 21.5540, lng: 81.7610 },
   'Kharora APMC': { lat: 21.4394, lng: 81.9328 },
-  'Raipur APMC': { lat: 21.2514, lng: 81.6296 },
+  'Raipur APMC': { lat: 21.2612, lng: 81.6508 },
   'Tilda Neora APMC': { lat: 21.5540, lng: 81.7610 },
   'Abhanpur APMC': { lat: 21.0543, lng: 81.7485 },
   'Arang APMC': { lat: 21.1963, lng: 81.9688 },
 
   // Durg & Bhilai
-  'Durg APMC': { lat: 21.1904, lng: 81.2849 },
+  'Durg APMC': { lat: 21.2062, lng: 81.2828 },
   'Dhamdha APMC': { lat: 21.4429, lng: 81.3128 },
   'Patan APMC': { lat: 21.0402, lng: 81.5366 },
 

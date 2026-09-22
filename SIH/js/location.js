@@ -329,6 +329,10 @@
     const cached = getStoredLocation();
     if (cached) {
       notifyListeners(cached);
+      // If session doesn't have coords yet and user hasn't denied, check geolocation in background
+      if (sess.state !== 'denied' && (!sess.coords || sess.state === 'unknown')) {
+        requestUserLocationOnce(false).catch(() => {});
+      }
       return cached;
     }
     // Only resolve if session hasn't explicitly denied

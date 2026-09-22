@@ -35,12 +35,12 @@
     // Raipur District
     'Neora APMC': { lat: 21.5540, lng: 81.7610 },
     'Kharora APMC': { lat: 21.4394, lng: 81.9328 },
-    'Raipur APMC': { lat: 21.2514, lng: 81.6296 },
+    'Raipur APMC': { lat: 21.2612, lng: 81.6508 },
     'Tilda Neora APMC': { lat: 21.5540, lng: 81.7610 },
     'Abhanpur APMC': { lat: 21.0543, lng: 81.7485 },
     'Arang APMC': { lat: 21.1963, lng: 81.9688 },
     // Durg & Bhilai
-    'Durg APMC': { lat: 21.1904, lng: 81.2849 },
+    'Durg APMC': { lat: 21.2062, lng: 81.2828 },
     'Dhamdha APMC': { lat: 21.4429, lng: 81.3128 },
     'Patan APMC': { lat: 21.0402, lng: 81.5366 },
     // Bilaspur
@@ -191,17 +191,22 @@
       const qParam = query && query.trim() ? `&q=${encodeURIComponent(query.trim())}` : '';
       let lat = 21.2514;
       let lng = 81.6296;
+      let district = 'Raipur';
       if (window.KrishiLocation) {
         const sess = window.KrishiLocation.getGpsSession();
         if (sess && sess.coords) {
           lat = sess.coords.lat;
           lng = sess.coords.lng;
         }
+        const loc = window.KrishiLocation.getLocation();
+        if (loc && loc.district) {
+          district = loc.district;
+        }
       }
       const coordsParam = `&lat=${lat}&lng=${lng}`;
       const refreshParam = bustCache ? '&refresh=1' : '';
 
-      const res = await fetch(`/api/mandi?district=Raipur${coordsParam}${refreshParam}${qParam}`, {
+      const res = await fetch(`/api/mandi?district=${encodeURIComponent(district)}${coordsParam}${refreshParam}${qParam}`, {
         headers: { 'Accept': 'application/json' },
         signal: activeAbortController.signal
       });
@@ -1357,6 +1362,22 @@
     checkUrlLang();
     setupModalListeners();
     fetchMarketPrices();
+
+    // Trigger live GPS check in background and refresh prices if granted
+    if (window.KrishiLocation && typeof window.KrishiLocation.requestUserLocationOnce === 'function') {
+      window.KrishiLocation.requestUserLocationOnce(false).then((res) => {
+        if (res && res.state === 'granted' && res.coords) {
+          fetchMarketPrices(activeQuery, false);
+        }
+      }).catch(() => {});
+    }
+
+    // Listen to location changes (e.g. user clicks "Use my location" button)
+    if (window.KrishiLocation && typeof window.KrishiLocation.onLocationChange === 'function') {
+      window.KrishiLocation.onLocationChange(() => {
+        fetchMarketPrices(activeQuery, false);
+      });
+    }
   }
 
   if (document.readyState === 'loading') {
