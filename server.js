@@ -52,7 +52,6 @@ const mandiRoutes = require('./server/mandi-routes');
 const sessionRoutes = require('./server/sessions');
 const buyers = require('./server/buyers');
 const supabase = require('./server/supabase');
-const phoneRoutes = require('./server/phone-auth');
 
 const app = express();
 const server = http.createServer(app);
@@ -95,7 +94,6 @@ app.use('/api', (req, res, next) => {
 app.use('/api/mandi', mandiRoutes);
 app.use('/api/sessions', sessionRoutes);
 app.use('/api/chat', chat.router);
-app.use('/api/phone', phoneRoutes);
 
 app.get('/api/buyers', (req, res) => {
   try {
@@ -136,29 +134,6 @@ app.get(['/js/maps-config.js', '/SIH/js/maps-config.js', '/maps-config.js', /.*m
 // REST config endpoint for maps
 app.get('/api/config/maps', (req, res) => {
   res.json({ apiKey: getMapsApiKey() });
-});
-
-// Provide dynamic Firebase Web Client configuration from environment variables
-function getFirebaseConfig() {
-  return {
-    apiKey: (process.env.FIREBASE_API_KEY || '').trim(),
-    authDomain: (process.env.FIREBASE_AUTH_DOMAIN || '').trim(),
-    projectId: (process.env.FIREBASE_PROJECT_ID || '').trim(),
-    storageBucket: (process.env.FIREBASE_STORAGE_BUCKET || '').trim(),
-    messagingSenderId: (process.env.FIREBASE_MESSAGING_SENDER_ID || '').trim(),
-    appId: (process.env.FIREBASE_APP_ID || '').trim()
-  };
-}
-
-app.get(['/js/firebase-config.js', '/SIH/js/firebase-config.js', '/firebase-config.js', /.*firebase-config\.js$/], (req, res) => {
-  res.type('application/javascript');
-  const cfg = getFirebaseConfig();
-  res.send(`window.FIREBASE_CONFIG = ${JSON.stringify(cfg, null, 2)};\n`);
-});
-
-// REST config endpoint for firebase
-app.get('/api/config/firebase', (req, res) => {
-  res.json(getFirebaseConfig());
 });
 
 // Root serves teammates' SIH frontend
