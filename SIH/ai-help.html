@@ -10,6 +10,8 @@
 <link rel="stylesheet" href="css/components.css">
 <link rel="stylesheet" href="css/navbar.css">
 <link rel="stylesheet" href="css/responsive.css">
+<link rel="stylesheet" href="css/animate.min.css">
+<link rel="stylesheet" href="css/templates/comparison.css">
 <link rel="stylesheet" href="css/ai-help.css">
 </head>
 <body>
@@ -20,7 +22,7 @@
 <!-- ============ SCREEN 6: AI RECOMMENDATIONS ============ -->
 <div class="screen active" id="screen-ai">
   <div class="header-bar">
-    <button class="back-btn" onclick="window.location.href='home.html'">←</button>
+    <button class="back-btn" id="header-back-btn">←</button>
     <span class="header-title" data-i18n="ai_title">🤖 AI Assistant</span>
     <button class="lang-toggle-small" onclick="toggleLang()">EN</button>
   </div>
@@ -116,38 +118,66 @@
 
   <!-- ==================== VIEW 3: LIVE VOICE ==================== -->
   <div class="ai-view voice-view-container" id="view-voice">
-    <div class="voice-status-section">
-      <div class="voice-status-pill" id="voice-status-pill" data-i18n="voice_tap_to_speak">Tap to speak</div>
-      <div class="voice-hint-text" id="voice-hint-text" data-i18n="voice_prompt_hint">
-        Speak in Hindi or English, e.g.: "What is the paddy price in Raipur?"
+
+    <!-- Zone 1: Interactive Canvas (templates mount here) -->
+    <div class="voice-interactive-canvas" id="voice-interactive-canvas">
+      <div class="voice-idle-prompt">
+        <div class="idle-illustration">
+          <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="32" cy="32" r="30" fill="var(--green-50)" stroke="var(--green-200)" stroke-width="2"/>
+            <path d="M32 18C29.24 18 27 20.24 27 23V33C27 35.76 29.24 38 32 38C34.76 38 37 35.76 37 33V23C37 20.24 34.76 18 32 18Z" fill="var(--green-500)"/>
+            <path d="M41 33C41 37.97 36.97 42 32 42C27.03 42 23 37.97 23 33H21C21 39.08 25.84 43.92 31 44.89V48H33V44.89C38.16 43.92 43 39.08 43 33H41Z" fill="var(--green-600)"/>
+          </svg>
+        </div>
+        <div class="idle-title" data-i18n="voice_tap_to_speak">Tap to speak</div>
+        <div class="idle-subtitle" data-i18n="voice_prompt_hint">Speak in Hindi or English, e.g.: "What is the paddy price in Raipur?"</div>
       </div>
     </div>
 
-    <!-- Central Audio Visualizer Orb -->
-    <div class="voice-visualizer-wrap" id="voice-orb-wrap">
-      <div class="voice-ring outer"></div>
-      <div class="voice-ring middle"></div>
-      <button class="voice-main-btn" id="voice-main-btn" aria-label="Microphone Action">🎤</button>
+    <!-- Hidden hint text (ID preserved for JS compat) -->
+    <div class="voice-hint-text" id="voice-hint-text" data-i18n="voice_prompt_hint" style="display:none;">
+      Speak in Hindi or English, e.g.: "What is the paddy price in Raipur?"
     </div>
 
-    <div class="voice-tool-indicator" id="voice-tool-indicator"></div>
-
-    <!-- Error Card with Retry Button -->
+    <!-- Error Card -->
     <div class="voice-error-card" id="voice-error-card">
       <div class="voice-error-text">Microphone access error</div>
       <button class="btn-retry-action" id="btn-voice-retry" data-i18n="voice_retry_permission">🔄 Retry Permission</button>
     </div>
 
-    <!-- Live Transcript Card -->
-    <div class="voice-transcript-card" id="voice-transcript-card">
+    <!-- Tool Indicator -->
+    <div class="voice-tool-indicator" id="voice-tool-indicator"></div>
+
+    <!-- Zone 2: Transcript Box (compact, above mic strip) -->
+    <div class="voice-transcript-card" id="voice-transcript-card" aria-live="polite">
       <div class="transcript-row model">🤖 <em>Voice session ready. Press microphone to begin speaking.</em></div>
     </div>
 
-    <div class="voice-controls-bar">
-      <button class="voice-action-btn" id="voice-mute-btn" style="display: none;">
-        <span>🔇</span> <span data-i18n="voice_mute">Mute</span>
+    <!-- Zone 3: Mic Strip -->
+    <div class="voice-mic-strip" id="voice-mic-strip">
+      <div class="voice-mute-btn-wrap">
+        <button class="voice-action-btn" id="voice-mute-btn" style="display: none;">
+          <span>🔇</span> <span data-i18n="voice_mute">Mute</span>
+        </button>
+      </div>
+      <button class="voice-mic-btn state-idle" id="voice-main-btn" aria-label="Microphone Action">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+          <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+        </svg>
       </button>
+      <div class="voice-status-wrap">
+        <div class="voice-status-pill" id="voice-status-pill" data-i18n="voice_tap_to_speak">Tap to speak</div>
+      </div>
     </div>
+
+    <!-- Hidden legacy elements (IDs preserved for voice.js compat) -->
+    <div class="voice-visualizer-wrap" id="voice-orb-wrap" style="display:none !important;">
+      <div class="voice-ring outer"></div>
+      <div class="voice-ring middle"></div>
+    </div>
+    <div class="voice-controls-bar" style="display:none !important;"></div>
+
   </div>
 </div>
 
@@ -195,6 +225,7 @@
 <script src="js/location.js"></script>
 <script src="js/chat.js"></script>
 <script src="js/voice.js"></script>
+<script src="js/templates/comparison.js"></script>
 <script src="js/ai-help.js"></script>
 </body>
 </html>

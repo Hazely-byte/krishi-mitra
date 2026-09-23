@@ -28,6 +28,7 @@
   let aiModeBar, modeBtnChat, modeBtnVoice, btnHistory, btnNewConvo;
   let chatMessages, chatInput, btnSendChat;
   let voiceOrbWrap, voiceMainBtn, voiceMuteBtn, voiceStatusPill, voiceHintText, voiceToolIndicator, voiceTranscriptCard, voiceErrorCard, btnVoiceRetry;
+  let voiceInteractiveCanvas, voiceMicStrip, headerBackBtn;
   let historyDrawer, drawerBackdrop, historyList, btnCloseDrawer, btnDrawerNewConvo;
 
   function initDOMElements() {
@@ -45,6 +46,8 @@
     chatInput = document.getElementById('chat-input');
     btnSendChat = document.getElementById('btn-send-chat');
 
+    voiceInteractiveCanvas = document.getElementById('voice-interactive-canvas');
+    voiceMicStrip = document.getElementById('voice-mic-strip');
     voiceOrbWrap = document.getElementById('voice-orb-wrap');
     voiceMainBtn = document.getElementById('voice-main-btn');
     voiceMuteBtn = document.getElementById('voice-mute-btn');
@@ -54,6 +57,8 @@
     voiceTranscriptCard = document.getElementById('voice-transcript-card');
     voiceErrorCard = document.getElementById('voice-error-card');
     btnVoiceRetry = document.getElementById('btn-voice-retry');
+
+    headerBackBtn = document.getElementById('header-back-btn') || document.querySelector('.header-bar .back-btn');
 
     historyDrawer = document.getElementById('history-drawer');
     drawerBackdrop = document.getElementById('drawer-backdrop');
@@ -127,6 +132,18 @@
   // 1. MODE MANAGEMENT & CLEANUP ON SWITCH
   // ============================================================
 
+  function exitVoiceMode() {
+    if (window.KrishiVoice && window.KrishiVoice.isRunning()) {
+      window.KrishiVoice.stop();
+    }
+    resetVoiceUI();
+    document.body.classList.remove('voice-mode-active');
+    if (window.KrishiTemplates && typeof window.KrishiTemplates.clearTemplate === 'function') {
+      window.KrishiTemplates.clearTemplate(voiceInteractiveCanvas);
+    }
+    setMode(null);
+  }
+
   function setMode(newMode) {
     if (currentMode === newMode) return;
 
@@ -137,6 +154,10 @@
         window.KrishiVoice.stop();
       }
       resetVoiceUI();
+      document.body.classList.remove('voice-mode-active');
+      if (window.KrishiTemplates && typeof window.KrishiTemplates.clearTemplate === 'function') {
+        window.KrishiTemplates.clearTemplate(voiceInteractiveCanvas);
+      }
     } else if (currentMode === 'chat') {
       // Abort in-flight streaming fetch
       if (window.KrishiChat) {
@@ -154,11 +175,13 @@
     // --- Update Views ---
     if (!newMode) {
       // Show upfront mode choice screen
+      document.body.classList.remove('voice-mode-active');
       if (viewModeSelect) viewModeSelect.classList.add('active');
       if (viewChat) viewChat.classList.remove('active');
       if (viewVoice) viewVoice.classList.remove('active');
       if (aiModeBar) aiModeBar.style.display = 'none';
     } else if (newMode === 'chat') {
+      document.body.classList.remove('voice-mode-active');
       if (viewModeSelect) viewModeSelect.classList.remove('active');
       if (viewChat) viewChat.classList.add('active');
       if (viewVoice) viewVoice.classList.remove('active');
@@ -167,12 +190,27 @@
       if (modeBtnVoice) modeBtnVoice.classList.remove('active');
       if (chatInput) chatInput.focus();
     } else if (newMode === 'voice') {
+      document.body.classList.add('voice-mode-active');
       if (viewModeSelect) viewModeSelect.classList.remove('active');
       if (viewChat) viewChat.classList.remove('active');
       if (viewVoice) viewVoice.classList.add('active');
-      if (aiModeBar) aiModeBar.style.display = 'flex';
+      if (aiModeBar) aiModeBar.style.display = 'none'; // Distraction-free voice
       if (modeBtnChat) modeBtnChat.classList.remove('active');
       if (modeBtnVoice) modeBtnVoice.classList.add('active');
+
+      try {
+        if (!history.state || history.state.mode !== 'voice') {
+          history.pushState({ mode: 'voice' }, '');
+        }
+      } catch (e) {}
+
+      // Restore idle prompt if canvas is empty
+      if (voiceInteractiveCanvas && !voiceInteractiveCanvas.querySelector('.tpl-comparison-container')) {
+        if (window.KrishiTemplates && typeof window.KrishiTemplates.restoreIdlePrompt === 'function') {
+          voiceInteractiveCanvas.innerHTML = '';
+          window.KrishiTemplates.restoreIdlePrompt(voiceInteractiveCanvas);
+        }
+      }
 
       if (window.isSecureContext === false) {
         showInsecureContextWarning();
@@ -369,20 +407,36 @@
   // 3. LIVE VOICE CONTROLLER
   // ============================================================
 
+  const MIC_SVG_PATH = '<path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>';
+  const STOP_SVG_PATH = '<rect x="6" y="6" width="12" height="12" rx="2"/>';
+
+  function setMicButtonState(state) {
+    if (!voiceMainBtn) return;
+    voiceMainBtn.classList.remove('state-idle', 'state-listening', 'state-processing', 'state-speaking', 'state-error');
+    voiceMainBtn.classList.add(`state-${state}`);
+
+    const isRunning = window.KrishiVoice && window.KrishiVoice.isRunning();
+    const svg = voiceMainBtn.querySelector('svg');
+    if (isRunning) {
+      voiceMainBtn.classList.add('active-call');
+      if (svg) svg.innerHTML = STOP_SVG_PATH;
+    } else {
+      voiceMainBtn.classList.remove('active-call');
+      if (svg) svg.innerHTML = MIC_SVG_PATH;
+    }
+  }
+
   function resetVoiceUI() {
     currentVoiceTurn = { role: null, element: null, text: '' };
     if (voiceStatusPill) {
       voiceStatusPill.className = 'voice-status-pill';
       voiceStatusPill.textContent = (window.i18n && i18n[currentLang].voice_tap_to_speak) || 'Tap to speak';
     }
-    if (voiceMainBtn) {
-      voiceMainBtn.classList.remove('active-call');
-      voiceMainBtn.textContent = '🎤';
-    }
+    setMicButtonState('idle');
     if (voiceMuteBtn) {
       voiceMuteBtn.style.display = 'none';
       voiceMuteBtn.classList.remove('muted');
-      voiceMuteBtn.textContent = '🔇 ' + ((window.i18n && i18n[currentLang].voice_mute) || 'Mute');
+      voiceMuteBtn.innerHTML = '<span>🔇</span> <span>' + ((window.i18n && i18n[currentLang].voice_mute) || 'Mute') + '</span>';
     }
     if (voiceToolIndicator) {
       voiceToolIndicator.textContent = '';
@@ -473,13 +527,15 @@
     }
 
     resetVoiceUI();
+    setMicButtonState('processing');
     if (voiceStatusPill) {
       voiceStatusPill.className = 'voice-status-pill connecting';
       voiceStatusPill.textContent = (window.i18n && i18n[currentLang].voice_connecting) || 'Connecting...';
     }
     if (voiceMainBtn) {
       voiceMainBtn.classList.add('active-call');
-      voiceMainBtn.textContent = '⏹️';
+      const svg = voiceMainBtn.querySelector('svg');
+      if (svg) svg.innerHTML = STOP_SVG_PATH;
     }
     if (voiceMuteBtn) {
       voiceMuteBtn.style.display = 'inline-flex';
@@ -498,19 +554,24 @@
         onState: (state) => {
           if (!voiceStatusPill) return;
           if (state === 'connecting') {
+            setMicButtonState('processing');
             voiceStatusPill.className = 'voice-status-pill connecting';
             voiceStatusPill.textContent = (window.i18n && i18n[currentLang].voice_connecting) || 'Connecting...';
           } else if (state === 'online') {
+            setMicButtonState('listening');
             voiceStatusPill.className = 'voice-status-pill listening';
             voiceStatusPill.textContent = (window.i18n && i18n[currentLang].voice_state_connected) || 'Connected';
           } else if (state === 'listening') {
+            setMicButtonState('listening');
             voiceStatusPill.className = 'voice-status-pill listening';
             voiceStatusPill.textContent = (window.i18n && i18n[currentLang].voice_listening) || 'Listening...';
           } else if (state === 'speaking') {
+            setMicButtonState('speaking');
             voiceStatusPill.className = 'voice-status-pill speaking';
             voiceStatusPill.textContent = (window.i18n && i18n[currentLang].voice_speaking) || 'AI is speaking...';
           } else if (state === 'interrupted') {
             currentVoiceTurn = { role: null, element: null, text: '' };
+            setMicButtonState('listening');
             voiceStatusPill.className = 'voice-status-pill interrupted';
             voiceStatusPill.textContent = (window.i18n && i18n[currentLang].voice_state_interrupted) || 'Interrupted';
           } else if (state === 'offline') {
@@ -523,9 +584,11 @@
         onToolStatus: (tool) => {
           if (!voiceToolIndicator) return;
           if (tool.status === 'running') {
+            setMicButtonState('processing');
             voiceToolIndicator.textContent = '⏳ ' + ((window.i18n && i18n[currentLang].checking_prices) || 'Checking mandi prices...');
           } else {
             voiceToolIndicator.textContent = '';
+            setMicButtonState('speaking');
           }
         },
         onVisualizer: (rms) => {
@@ -536,6 +599,11 @@
         },
         onError: (err) => {
           resetVoiceUI();
+          setMicButtonState('error');
+          if (voiceStatusPill) {
+            voiceStatusPill.className = 'voice-status-pill error';
+            voiceStatusPill.textContent = (window.i18n && i18n[currentLang].voice_state_error) || 'Error';
+          }
           if (voiceErrorCard) {
             voiceErrorCard.classList.add('visible');
             const errSpan = voiceErrorCard.querySelector('.voice-error-text');
@@ -559,10 +627,10 @@
     if (voiceMuteBtn) {
       if (muted) {
         voiceMuteBtn.classList.add('muted');
-        voiceMuteBtn.textContent = '🔊 ' + ((window.i18n && i18n[currentLang].voice_unmute) || 'Unmute');
+        voiceMuteBtn.innerHTML = '<span>🔊</span> <span>' + ((window.i18n && i18n[currentLang].voice_unmute) || 'Unmute') + '</span>';
       } else {
         voiceMuteBtn.classList.remove('muted');
-        voiceMuteBtn.textContent = '🔇 ' + ((window.i18n && i18n[currentLang].voice_mute) || 'Mute');
+        voiceMuteBtn.innerHTML = '<span>🔇</span> <span>' + ((window.i18n && i18n[currentLang].voice_mute) || 'Mute') + '</span>';
       }
     }
   }
@@ -707,6 +775,10 @@
       }
       resetVoiceUI();
       if (voiceTranscriptCard) voiceTranscriptCard.innerHTML = '';
+      if (voiceInteractiveCanvas && window.KrishiTemplates && typeof window.KrishiTemplates.restoreIdlePrompt === 'function') {
+        voiceInteractiveCanvas.innerHTML = '';
+        window.KrishiTemplates.restoreIdlePrompt(voiceInteractiveCanvas);
+      }
     }
   }
 
@@ -715,6 +787,41 @@
   // ============================================================
 
   function bindEvents() {
+    // Header back button with mode-aware navigation
+    if (headerBackBtn) {
+      headerBackBtn.onclick = (e) => {
+        e.preventDefault();
+        if (currentMode === 'voice') {
+          exitVoiceMode();
+        } else if (currentMode === 'chat') {
+          setMode(null);
+        } else {
+          window.location.href = 'home.html';
+        }
+      };
+    }
+
+    // Android hardware back / browser history navigation
+    window.addEventListener('popstate', (e) => {
+      if (currentMode === 'voice') {
+        exitVoiceMode();
+      } else if (currentMode === 'chat') {
+        setMode(null);
+      }
+    });
+
+    // Listen to template action custom events (fire-and-forget from templates)
+    document.addEventListener('krishi:template-action', (e) => {
+      console.log('[KrishiAI] Template action received:', e.detail);
+      if (e.detail && e.detail.voicePayload) {
+        handleVoiceTranscript({
+          role: 'user',
+          text: e.detail.voicePayload,
+          isFinal: true
+        });
+      }
+    });
+
     // Mode selection card clicks
     const cardChat = document.getElementById('card-select-chat');
     const cardVoice = document.getElementById('card-select-voice');
@@ -772,12 +879,24 @@
     openHistoryDrawer();
   };
 
+  window.exitVoiceMode = function () {
+    exitVoiceMode();
+  };
+
   window.onLanguageChange = function () {
     if (!window.KrishiVoice || !window.KrishiVoice.isRunning()) {
       resetVoiceUI();
     }
-    if (currentMode === 'voice' && window.isSecureContext === false) {
-      showInsecureContextWarning();
+    if (currentMode === 'voice') {
+      if (window.isSecureContext === false) {
+        showInsecureContextWarning();
+      }
+      if (voiceInteractiveCanvas && !voiceInteractiveCanvas.querySelector('.tpl-comparison-container')) {
+        if (window.KrishiTemplates && typeof window.KrishiTemplates.restoreIdlePrompt === 'function') {
+          voiceInteractiveCanvas.innerHTML = '';
+          window.KrishiTemplates.restoreIdlePrompt(voiceInteractiveCanvas);
+        }
+      }
     }
   };
 

@@ -433,39 +433,337 @@
   font-weight: 600;
 }
 
-/* ---------- Voice View ---------- */
-.voice-view-container {
-  flex: 1;
-  flex-direction: column;
-  align-items: center;
-  justify-content: space-between;
-  padding: 20px 16px 28px;
-  text-align: center;
-  max-width: 600px;
-  margin: 0 auto;
-  width: 100%;
-  height: calc(100dvh - var(--header-height) - var(--nav-height) - 48px);
-  box-sizing: border-box;
+/* ---------- Voice Mode: Body-level toggle & viewport lock ---------- */
+body.voice-mode-active {
+  overflow: hidden !important;
+  height: 100dvh !important;
+  max-height: 100dvh !important;
 }
 
-.voice-status-section {
+body.voice-mode-active #screen-ai {
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  min-height: 0 !important;
+  padding-bottom: 0 !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+body.voice-mode-active .bottom-nav,
+body.voice-mode-active .ai-mode-bar {
+  display: none !important;
+}
+
+/* ---------- Voice View: Container fills remaining height below header ---------- */
+.voice-view-container {
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  width: 100%;
+  height: calc(100dvh - var(--header-height, 56px));
+  max-height: calc(100dvh - var(--header-height, 56px));
+  overflow: hidden;
+  overscroll-behavior: none;
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+/* ---------- Interactive Canvas ---------- */
+.voice-interactive-canvas {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.voice-interactive-canvas.tpl-active {
+  align-items: stretch;
+  justify-content: stretch;
+}
+
+/* ---------- Idle Prompt ---------- */
+.voice-idle-prompt {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  text-align: center;
+  gap: 14px;
+  padding: 24px;
+  opacity: 1;
+  transition: opacity 0.3s ease;
 }
 
+.voice-idle-prompt .idle-illustration {
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: var(--green-50);
+}
+
+.voice-idle-prompt .idle-illustration svg {
+  width: 64px;
+  height: 64px;
+}
+
+.voice-idle-prompt .idle-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--gray-800);
+}
+
+.voice-idle-prompt .idle-subtitle {
+  font-size: 13px;
+  color: var(--gray-500);
+  max-width: 280px;
+  line-height: 1.5;
+}
+
+/* ---------- Transcript Box (Redesigned — compact floating card, above mic strip) ---------- */
+.voice-transcript-card {
+  width: calc(100% - 24px);
+  margin: 0 12px 6px;
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  padding: 10px 14px;
+  min-height: 48px;
+  max-height: clamp(64px, 12vh, 96px);
+  overflow-y: auto;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  box-shadow: var(--shadow-sm);
+}
+
+.transcript-row {
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.transcript-row.user {
+  color: var(--gray-700);
+  font-weight: 500;
+}
+
+.transcript-row.model {
+  color: var(--green-700);
+  font-weight: 600;
+}
+
+/* Tool status badge (now inside transcript area) */
+.voice-tool-indicator {
+  min-height: 20px;
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--earth-700);
+  padding: 0 16px;
+  flex-shrink: 0;
+}
+
+.voice-tool-indicator:empty {
+  display: none;
+}
+
+/* ---------- Mic Strip ---------- */
+.voice-mic-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  background: var(--white);
+  border-top: 1px solid var(--gray-200);
+  flex-shrink: 0;
+  position: relative;
+  z-index: 10;
+  min-height: 72px;
+  box-sizing: border-box;
+}
+
+/* Mute button */
+.voice-mute-btn-wrap {
+  flex: 1;
+  display: flex;
+  justify-content: flex-start;
+  z-index: 2;
+}
+
+.voice-mute-btn-wrap .voice-action-btn {
+  padding: 8px 14px;
+  border-radius: var(--radius-full);
+  border: 1.5px solid var(--gray-300);
+  background: var(--white);
+  color: var(--gray-700);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.voice-mute-btn-wrap .voice-action-btn:hover {
+  background: var(--gray-100);
+}
+
+.voice-mute-btn-wrap .voice-action-btn.muted {
+  background: var(--red-100);
+  border-color: var(--red-500);
+  color: var(--red-500);
+}
+
+/* Status pill wrap */
+.voice-status-wrap {
+  flex: 1;
+  display: flex;
+  justify-content: flex-end;
+  z-index: 2;
+}
+
+/* Main Mic Button — pinned to dead center */
+.voice-mic-btn {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: none;
+  background: var(--green-600);
+  color: var(--white);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.1s ease;
+  box-shadow: 0 4px 16px rgba(22, 163, 74, 0.3);
+  z-index: 3;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.voice-mic-btn svg {
+  width: 24px;
+  height: 24px;
+  fill: currentColor;
+}
+
+.voice-mic-btn:hover {
+  transform: translate(-50%, -50%) scale(1.04);
+}
+
+.voice-mic-btn:active {
+  transform: translate(-50%, -50%) scale(0.95);
+}
+
+/* Mic button states */
+.voice-mic-btn.active-call {
+  background: var(--red-500);
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.3);
+}
+
+/* Idle: gentle breathing pulse */
+.voice-mic-btn.state-idle {
+  animation: micBreathing 2.5s ease-in-out infinite;
+}
+
+@keyframes micBreathing {
+  0%, 100% { box-shadow: 0 4px 16px rgba(22, 163, 74, 0.3); }
+  50% { box-shadow: 0 4px 24px rgba(22, 163, 74, 0.5); }
+}
+
+/* Listening: ripple rings */
+.voice-mic-btn.state-listening {
+  animation: none;
+}
+
+.voice-mic-btn.state-listening::before,
+.voice-mic-btn.state-listening::after {
+  content: '';
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 2px solid var(--green-400);
+  top: 0;
+  left: 0;
+  animation: micRipple 1.8s ease-out infinite;
+}
+
+.voice-mic-btn.state-listening::after {
+  animation-delay: 0.6s;
+}
+
+@keyframes micRipple {
+  0% { transform: scale(1); opacity: 0.6; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+
+/* Processing: rotating conic border */
+.voice-mic-btn.state-processing {
+  background: var(--green-600);
+  animation: micConicSpin 1.2s linear infinite;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  box-shadow: 0 0 0 3px var(--green-300), 0 4px 16px rgba(22, 163, 74, 0.3);
+}
+
+@keyframes micConicSpin {
+  0% { box-shadow: 0 0 0 3px var(--green-300), 0 4px 16px rgba(22, 163, 74, 0.3); }
+  25% { box-shadow: 0 0 0 3px var(--green-500), 0 4px 16px rgba(22, 163, 74, 0.4); }
+  50% { box-shadow: 0 0 0 3px var(--green-600), 0 4px 16px rgba(22, 163, 74, 0.5); }
+  75% { box-shadow: 0 0 0 3px var(--green-500), 0 4px 16px rgba(22, 163, 74, 0.4); }
+  100% { box-shadow: 0 0 0 3px var(--green-300), 0 4px 16px rgba(22, 163, 74, 0.3); }
+}
+
+/* Speaking: soft wave animation */
+.voice-mic-btn.state-speaking {
+  animation: micSpeakWave 1.5s ease-in-out infinite;
+}
+
+@keyframes micSpeakWave {
+  0%, 100% { box-shadow: 0 2px 12px rgba(59, 130, 246, 0.3); }
+  33% { box-shadow: 0 4px 20px rgba(59, 130, 246, 0.5); }
+  66% { box-shadow: 0 2px 16px rgba(59, 130, 246, 0.4); }
+}
+
+/* Error: red tint */
+.voice-mic-btn.state-error {
+  background: var(--red-500);
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.3);
+  animation: none;
+}
+
+/* Status Pill (inline in strip) */
 .voice-status-pill {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 16px;
+  padding: 4px 12px;
   border-radius: var(--radius-full);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   background: var(--gray-100);
   color: var(--gray-700);
   transition: all 0.3s ease;
+  white-space: nowrap;
 }
 
 .voice-status-pill.connecting {
@@ -494,159 +792,12 @@
   color: var(--red-500);
 }
 
-.voice-hint-text {
-  font-size: 13px;
-  color: var(--gray-500);
-  max-width: 320px;
-}
-
-/* Central Voice Orb */
-.voice-visualizer-wrap {
-  position: relative;
-  width: 160px;
-  height: 160px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 20px 0;
-}
-
-.voice-ring {
-  position: absolute;
-  border-radius: 50%;
-  pointer-events: none;
-  transition: transform 0.08s ease-out, opacity 0.08s ease-out;
-}
-
-.voice-ring.outer {
-  width: 160px;
-  height: 160px;
-  background: rgba(34, 197, 94, 0.12);
-  transform: scale(var(--rms-scale, 1));
-}
-
-.voice-ring.middle {
-  width: 130px;
-  height: 130px;
-  background: rgba(34, 197, 94, 0.22);
-  transform: scale(calc(var(--rms-scale, 1) * 0.9));
-}
-
-.voice-main-btn {
-  position: relative;
-  z-index: 2;
-  width: 100px;
-  height: 100px;
-  border-radius: 50%;
-  border: none;
-  background: var(--green-600);
-  color: var(--white);
-  font-size: 40px;
-  cursor: pointer;
-  box-shadow: var(--shadow-xl);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-}
-
-.voice-main-btn:hover {
-  transform: scale(1.04);
-}
-
-.voice-main-btn:active {
-  transform: scale(0.96);
-}
-
-.voice-main-btn.active-call {
-  background: var(--red-500);
-}
-
-/* Tool execution status badge in Voice */
-.voice-tool-indicator {
-  min-height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--earth-700);
-}
-
-/* Transcript Box */
-.voice-transcript-card {
-  width: 100%;
-  background: var(--white);
-  border: 1px solid var(--gray-200);
-  border-radius: var(--radius-lg);
-  padding: 14px 16px;
-  min-height: 90px;
-  max-height: 160px;
-  overflow-y: auto;
-  text-align: left;
-  box-shadow: var(--shadow-sm);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.transcript-row {
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.transcript-row.user {
-  color: var(--gray-700);
-  font-weight: 500;
-}
-
-.transcript-row.model {
-  color: var(--green-700);
-  font-weight: 600;
-}
-
-/* Bottom Voice Controls */
-.voice-controls-bar {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-  width: 100%;
-  margin-top: 12px;
-}
-
-.voice-action-btn {
-  padding: 10px 20px;
-  border-radius: var(--radius-full);
-  border: 1.5px solid var(--gray-300);
-  background: var(--white);
-  color: var(--gray-700);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  transition: all 0.2s;
-  font-family: inherit;
-}
-
-.voice-action-btn:hover {
-  background: var(--gray-100);
-}
-
-.voice-action-btn.muted {
-  background: var(--red-100);
-  border-color: var(--red-500);
-  color: var(--red-500);
-}
-
 /* Error Card */
 .voice-error-card {
   width: 100%;
   background: var(--red-100);
   border: 1.5px solid var(--red-500);
-  border-radius: var(--radius-md);
+  border-radius: 0;
   padding: 12px 16px;
   color: var(--gray-900);
   font-size: 13px;
@@ -654,6 +805,7 @@
   flex-direction: column;
   gap: 8px;
   text-align: left;
+  flex-shrink: 0;
 }
 
 .voice-error-card.visible {
@@ -671,6 +823,34 @@
   font-size: 12px;
   cursor: pointer;
   font-family: inherit;
+}
+
+/* Hidden elements in voice mode */
+.voice-view-container .voice-hint-text {
+  display: none;
+}
+
+/* Old orb elements — hidden (IDs preserved for JS compat) */
+.voice-view-container .voice-visualizer-wrap,
+.voice-view-container .voice-controls-bar {
+  display: none !important;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* ---------- Reduced Motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .voice-mic-btn,
+  .voice-mic-btn::before,
+  .voice-mic-btn::after {
+    animation: none !important;
+  }
+  .voice-status-pill.connecting {
+    animation: none !important;
+  }
 }
 
 /* ---------- Session History Drawer ---------- */
