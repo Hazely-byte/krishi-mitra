@@ -90,6 +90,11 @@ router.get('/', async (req, res) => {
     trend_pct: db.getTrendPct(p.commodity, p.market, p.district)
   }));
 
+  const recordDates = records.map(p => p.arrival_date).filter(Boolean);
+  const activeRecordLatestDate = recordDates.length > 0
+    ? recordDates.reduce((latest, d) => (d > latest ? d : latest), recordDates[0])
+    : (meta.latest_data_date || null);
+
   res.json({
     location: {
       state: 'Chhattisgarh',
@@ -99,7 +104,7 @@ router.get('/', async (req, res) => {
     user_coords: result.user_coords,
     radius_km: result.radius_km,
     last_updated: meta.last_updated,
-    latest_data_date: meta.latest_data_date,
+    latest_data_date: activeRecordLatestDate,
     reference_date: result.reference_date,
     stale: meta.stale,
     is_search: Boolean(q && q.trim()),

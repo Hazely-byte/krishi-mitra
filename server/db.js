@@ -1135,9 +1135,12 @@ function getLastSync() {
 function getSyncMeta(district = 'Raipur') {
   const db = getDb();
   const lastSync = getLastSync();
-  const latestDate = db.prepare(`
+  let latestDate = db.prepare(`
     SELECT MAX(arrival_date) AS latest_date FROM mandi_prices WHERE district = @district
   `).get({ district });
+  if (!latestDate || !latestDate.latest_date) {
+    latestDate = db.prepare(`SELECT MAX(arrival_date) AS latest_date FROM mandi_prices`).get();
+  }
   const rowCount = db.prepare(`
     SELECT COUNT(*) AS cnt FROM mandi_prices WHERE district = @district
   `).get({ district });

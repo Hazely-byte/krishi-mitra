@@ -284,10 +284,10 @@
             : (t.updated_success || `Prices updated successfully (${refreshData.rows_synced} fresh records synced)`);
           showToast(successMsg);
         } else {
-          const recDate = latestDataDate ? formatDate(latestDataDate) : (refreshData?.latest_data_date ? formatDate(refreshData.latest_data_date) : '22/09/2026');
+          const recDate = latestDataDate ? formatDate(latestDataDate) : (refreshData?.latest_data_date ? formatDate(refreshData.latest_data_date) : '');
           const syncMsg = currentLang === 'hi'
-            ? `लाइव सिंक उपलब्ध नहीं है। ${recDate} के संग्रहीत बाज़ार भाव दिखाए जा रहे हैं।`
-            : `Sync unavailable right now. Showing last known prices from ${recDate}.`;
+            ? (recDate ? `लाइव सिंक उपलब्ध नहीं है। ${recDate} के संग्रहीत बाज़ार भाव दिखाए जा रहे हैं।` : 'लाइव सिंक उपलब्ध नहीं है। संग्रहीत बाज़ार भाव दिखाए जा रहे हैं।')
+            : (recDate ? `Sync unavailable right now. Showing last known prices from ${recDate}.` : 'Sync unavailable right now. Showing stored market prices.');
           showToast(syncMsg);
         }
       }
