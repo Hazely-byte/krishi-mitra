@@ -55,6 +55,7 @@ const supabase = require('./server/supabase');
 const auth = require('./server/auth');
 
 const app = express();
+app.set('trust proxy', 1);
 const server = http.createServer(app);
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
