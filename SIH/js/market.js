@@ -11,6 +11,7 @@
   let marketLocation = { state: 'Chhattisgarh', district: 'Raipur', market: '' };
   let lastUpdated = null;
   let latestDataDate = null;
+  let isStale = false;
   let isUpdating = false;
   let isLoading = false;
   let loadError = false;
@@ -220,6 +221,7 @@
       marketLocation = data.location || { state: 'Chhattisgarh', district: 'Raipur', market: '' };
       lastUpdated = data.last_updated;
       latestDataDate = data.latest_data_date;
+      isStale = Boolean(data.stale || !data.last_updated);
       isLoading = false;
 
       renderInfoBanner();
@@ -258,17 +260,36 @@
       }
 
       // 2. Call server refresh
-      await fetch('/api/mandi/refresh', {
-        method: 'POST',
-        headers: { 'Accept': 'application/json' },
-        signal: AbortSignal.timeout(15000)
-      });
+      let refreshData = null;
+      try {
+        const refreshRes = await fetch('/api/mandi/refresh', {
+          method: 'POST',
+          headers: { 'Accept': 'application/json' },
+          signal: AbortSignal.timeout(15000)
+        });
+        if (refreshRes.ok) {
+          refreshData = await refreshRes.json();
+        }
+      } catch (postErr) {
+        console.warn('[market] POST /api/mandi/refresh failed:', postErr);
+      }
 
       // 3. Re-fetch prices with cache busted
       await fetchMarketPrices(activeQuery, true);
 
       if (typeof showToast === 'function') {
-        showToast(t.updated_success || 'Prices updated successfully');
+        if (refreshData && refreshData.success && refreshData.rows_synced > 0) {
+          const successMsg = currentLang === 'hi'
+            ? `भाव अपडेट हो गए (${refreshData.rows_synced} नए रिकॉर्ड सिंक हुए)`
+            : (t.updated_success || `Prices updated successfully (${refreshData.rows_synced} fresh records synced)`);
+          showToast(successMsg);
+        } else {
+          const recDate = latestDataDate ? formatDate(latestDataDate) : (refreshData?.latest_data_date ? formatDate(refreshData.latest_data_date) : '22/09/2026');
+          const syncMsg = currentLang === 'hi'
+            ? `लाइव सिंक उपलब्ध नहीं है। ${recDate} के संग्रहीत बाज़ार भाव दिखाए जा रहे हैं।`
+            : `Sync unavailable right now. Showing last known prices from ${recDate}.`;
+          showToast(syncMsg);
+        }
       }
     } catch (err) {
       console.warn('[market] Refresh request error:', err);
@@ -304,6 +325,12 @@
     const userLoc = window.KrishiLocation ? window.KrishiLocation.getLocation() : null;
     const isFallback = userLoc && !userLoc.matched && userLoc.source === 'fallback';
 
+    const statusBadge = (isStale || !lastUpdated)
+      ? `<span class="banner-stale-tag" title="Upstream live sync unavailable right now. Showing stored market baseline.">⚠️ ${currentLang === 'hi' ? 'संग्रहीत बाज़ार रिकॉर्ड' : 'Stored Market Baseline'}</span>`
+      : `<span class="banner-live-tag">🟢 ${currentLang === 'hi' ? 'लाइव सिंक' : 'Live Sync'}</span>`;
+
+    const dateLabel = currentLang === 'hi' ? 'रिकॉर्ड तिथि:' : 'Record Date:';
+
     banner.innerHTML = `
       <div class="banner-card">
         <div class="banner-left">
@@ -311,7 +338,9 @@
           <div class="banner-text-group">
             <div class="banner-location">${bannerTitle}</div>
             <div class="banner-updated">
-              ${dateStr ? `📅 ${dateStr}` : ''} ${timeStr ? `• ⏰ ${timeStr}` : ''}
+              ${dateStr ? `<span>📅 ${dateLabel} <strong>${dateStr}</strong></span>` : ''}
+              ${timeStr && !isStale ? `<span>• ⏰ ${timeStr}</span>` : ''}
+              ${statusBadge}
             </div>
           </div>
         </div>

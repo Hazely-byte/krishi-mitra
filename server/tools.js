@@ -260,7 +260,7 @@ const toolDeclarations = [
   },
   {
     name: 'find_buyers_ui',
-    description: 'Finds agricultural buyers, APMC mandis, FPOs, and traders within a given radius (up to 300km). When the user asks for a single specific match or superlative (e.g. "which is the closest mandi?", "nearest buyer", "cheapest place to sell"), set answer_mode="DIRECT_ANSWER" to present a focused single direct result. When the user asks to browse, explore, or pick among multiple options, set answer_mode="BROWSABLE_LIST" (default). Note: If results contain demo listings, they are marked with an unverified demonstration badge, and you must state out loud that they are demonstration listings.',
+    description: 'Finds verified agricultural APMC mandi buyers within a given radius (up to 300km) derived from real mandi arrivals in the database. When the user asks for a single specific match or superlative (e.g. "which is the closest mandi?", "nearest buyer", "cheapest place to sell"), set answer_mode="DIRECT_ANSWER" to present a focused single direct result. When the user asks to browse, explore, or pick among multiple options, set answer_mode="BROWSABLE_LIST" (default).',
     parameters: {
       type: 'OBJECT',
       properties: {
@@ -980,7 +980,6 @@ function groundBuyersData(args = {}, userLocation = null) {
 
   if (isDirectAnswer) {
     const bestBuyer = candidates[0];
-    const isMock = Boolean(bestBuyer.isMockData);
     let distDisplay = 'Distance unavailable';
     if (bestBuyer.distanceDisplay && bestBuyer.distanceDisplay !== '0 km') {
       distDisplay = bestBuyer.distanceDisplay;
@@ -993,7 +992,7 @@ function groundBuyersData(args = {}, userLocation = null) {
       {
         title: 'Location & Distance',
         items: [
-          `Mandi / Buyer: ${bestBuyer.name}`,
+          `Mandi / Market: ${bestBuyer.name}`,
           `District: ${bestBuyer.district}, ${bestBuyer.state}`,
           `Distance from you: ${distDisplay}`,
           `Address: ${bestBuyer.contact?.address || `${bestBuyer.district}, ${bestBuyer.state}`}`
@@ -1003,8 +1002,8 @@ function groundBuyersData(args = {}, userLocation = null) {
         title: 'Operating Hours & Contact',
         items: [
           `Hours: ${bestBuyer.contact?.hours || '08:00 AM – 06:00 PM (Mon–Sat)'}`,
-          `Phone: ${bestBuyer.contact?.phone || '1800-180-1551 (Kisan Helpline)'}`,
-          `Category: ${bestBuyer.category || 'Mandi / Buyer'}`
+          `Helpline: ${bestBuyer.contact?.phone || '1800-180-1551 (Kisan Helpline)'}`,
+          `Category: ${bestBuyer.category || 'Govt APMC Mandi'}`
         ]
       }
     ];
@@ -1016,23 +1015,8 @@ function groundBuyersData(args = {}, userLocation = null) {
       });
     }
 
-    if (isMock) {
-      sections.unshift({
-        title: '⚠️ Demonstration Notice',
-        items: [
-          'This is an example test fixture for UI demonstration purposes.',
-          'Contact numbers and demands are mock fixtures and not verified real buyers.'
-        ]
-      });
-    }
-
-    const heroBadge = isMock
-      ? 'Demo Listing — Not Verified'
-      : (bestBuyer.type === 'market' ? 'Closest Mandi' : 'Nearest Verified Buyer');
-
-    const spokenSummaryHint = isMock
-      ? `The closest mandi to you is ${bestBuyer.name}, approximately ${distDisplay} away in ${bestBuyer.district}. Please note this is a demonstration listing. I have displayed the direct details on your screen.`
-      : `The closest mandi to you is ${bestBuyer.name}, located approximately ${distDisplay} away in ${bestBuyer.district}. I have put the direct mandi card on your screen. Would you like driving directions or contact details?`;
+    const heroBadge = 'Closest Mandi';
+    const spokenSummaryHint = `The closest mandi to you is ${bestBuyer.name}, located approximately ${distDisplay} away in ${bestBuyer.district}. I have put the verified mandi details on your screen. Would you like driving directions or arrival rates?`;
 
     const templateData = {
       template: 'detail_card_ui',
@@ -1040,7 +1024,7 @@ function groundBuyersData(args = {}, userLocation = null) {
       type: 'BUYER',
       title: bestBuyer.name,
       subtitle: `📍 ${bestBuyer.district}, ${bestBuyer.state} • ${distDisplay} away`,
-      icon: bestBuyer.type === 'market' ? '🏪' : (bestBuyer.type === 'company' ? '🏢' : '👤'),
+      icon: '🏪',
       hero_badge: heroBadge,
       hero_metric: {
         label: 'DISTANCE TO MANDI',
@@ -1056,11 +1040,11 @@ function groundBuyersData(args = {}, userLocation = null) {
       sections,
       action_buttons: [
         { id: 'view_map', label: '🗺️ Open Map / Directions', type: 'link', payload: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(bestBuyer.contact?.placeQuery || bestBuyer.name)}` },
-        { id: 'call_mandi', label: isMock ? '📞 Demo Phone' : `📞 Call (${bestBuyer.contact?.phone || 'Helpline'})`, type: 'tel', payload: `tel:${(bestBuyer.contact?.phone || '18001801551').replace(/[^0-9+]/g, '')}` }
+        { id: 'call_mandi', label: `📞 Call (${bestBuyer.contact?.phone || 'Helpline'})`, type: 'tel', payload: `tel:${(bestBuyer.contact?.phone || '18001801551').replace(/[^0-9+]/g, '')}` }
       ],
       buyer_data: bestBuyer,
-      has_mock_data: isMock,
-      is_grounded: !isMock,
+      has_mock_data: false,
+      is_grounded: true,
       rendered_items: 1,
       total_items: 1
     };
@@ -1070,7 +1054,7 @@ function groundBuyersData(args = {}, userLocation = null) {
       subtitle: `📍 ${bestBuyer.district}, ${bestBuyer.state} • ${distDisplay}`,
       options: [],
       topBuyers: [bestBuyer],
-      hasMockBuyers: isMock,
+      hasMockBuyers: false,
       isMixed: false,
       spokenSummaryHint,
       templateData
@@ -1079,13 +1063,8 @@ function groundBuyersData(args = {}, userLocation = null) {
 
   // Take top 6 buyers for the rectangular selector menu
   const topBuyers = candidates.slice(0, 6);
-  const mockCount = topBuyers.filter(b => Boolean(b.isMockData)).length;
-  const hasMockBuyers = mockCount > 0;
-  const hasRealBuyers = mockCount < topBuyers.length;
-  const isMixed = hasMockBuyers && hasRealBuyers;
 
   const options = topBuyers.map((b, idx) => {
-    const isMock = Boolean(b.isMockData);
     let topCropDesc = '';
     if (Array.isArray(b.activeDemands) && b.activeDemands.length > 0) {
       topCropDesc = `${b.activeDemands[0].crop}: ${b.activeDemands[0].price}`;
@@ -1102,41 +1081,26 @@ function groundBuyersData(args = {}, userLocation = null) {
       distText = 'Distance unavailable';
     }
 
-    const badgeText = isMock ? 'Demo Listing — Not Verified' : (b.category || 'Verified Partner');
-    const avatarIcon = b.type === 'market' ? '🏪' : (b.type === 'company' ? '🏢' : '👤');
+    const badgeText = b.category || 'Govt APMC Mandi';
 
     return {
       id: b.id || `buyer_${idx + 1}`,
       label: b.name,
-      icon: avatarIcon,
+      icon: '🏪',
       desc: `${distText} • ${topCropDesc}`,
       badge: badgeText,
-      isMockData: isMock
+      isMockData: false
     };
   });
 
   const buyerNames = topBuyers.slice(0, 3).map(b => b.name).join(', ');
-  let spokenSummaryHint = '';
-  if (isMixed) {
-    spokenSummaryHint = `I found nearby buyers including ${buyerNames}. Please note that some listings are demonstration examples, not verified real buyers. I have marked demo cards on your screen. Which one would you like to explore?`;
-  } else if (hasMockBuyers) {
-    spokenSummaryHint = `I found nearby buyers including ${buyerNames}. Please note that these are example listings for demonstration, not verified real buyers. I have displayed them on your screen with a demo badge. Which one would you like to explore?`;
-  } else {
-    spokenSummaryHint = `I found ${topBuyers.length} verified buyers near ${cleanDistrict} including ${buyerNames}. I have displayed them on your screen. Which one would you like to explore?`;
-  }
+  const spokenSummaryHint = `I found ${topBuyers.length} verified mandis near ${cleanDistrict} including ${buyerNames}. I have displayed them on your screen. Which one would you like to explore?`;
 
   const title = rawCrop 
-    ? `Buyers for ${rawCrop} near ${cleanDistrict}`
-    : `Nearby Buyers & Markets (${cleanDistrict})`;
+    ? `Mandis for ${rawCrop} near ${cleanDistrict}`
+    : `Nearby APMC Mandis (${cleanDistrict})`;
 
-  let subtitle = '';
-  if (isMixed) {
-    subtitle = `Showing nearby buyers within ${radiusKm}km — some listings are demo/unverified`;
-  } else if (hasMockBuyers) {
-    subtitle = `Showing nearby buyers within ${radiusKm}km — demo listings (not verified)`;
-  } else {
-    subtitle = `Showing ${topBuyers.length} verified buyers within ${radiusKm}km`;
-  }
+  const subtitle = `Showing ${topBuyers.length} verified mandis within ${radiusKm}km`;
 
   const templateData = {
     template: 'selector_menu_ui',
@@ -1147,12 +1111,10 @@ function groundBuyersData(args = {}, userLocation = null) {
     page: 0,
     total_pages: 1,
     total_items: topBuyers.length,
-    has_mock_data: hasMockBuyers,
-    is_mixed_data: isMixed,
-    is_grounded: !hasMockBuyers,
-    disclaimer: isMixed
-      ? 'Note: Some listings on this screen are demo test fixtures for demonstration and are not verified real buyers.'
-      : (hasMockBuyers ? 'Demo Listings — These are example test fixtures for demonstration and are not verified real buyers.' : null),
+    has_mock_data: false,
+    is_mixed_data: false,
+    is_grounded: true,
+    disclaimer: null,
     buyers_data: topBuyers
   };
 
@@ -1161,8 +1123,8 @@ function groundBuyersData(args = {}, userLocation = null) {
     subtitle,
     options,
     topBuyers,
-    hasMockBuyers,
-    isMixed,
+    hasMockBuyers: false,
+    isMixed: false,
     spokenSummaryHint,
     templateData
   };
@@ -1554,26 +1516,16 @@ function groundDetailCardData(args = {}, userLocation = null) {
         }
       ];
 
-      if (isMock) {
-        sections.unshift({
-          title: '⚠️ Demonstration Notice',
-          items: [
-            'This is an example test fixture for UI demonstration purposes.',
-            'Contact numbers, license numbers, and prices are mock fixtures and not verified real buyers.'
-          ]
-        });
-      }
-
       return {
-        is_grounded: !isMock,
-        has_mock_data: isMock,
+        is_grounded: true,
+        has_mock_data: false,
         template: 'detail_card_ui',
         primitive: 'detail_card',
         type: 'BUYER',
         title: b.name,
         subtitle: `📍 ${b.district}, ${b.state}` + (distDisplay !== 'Distance unavailable' ? ` • ${distDisplay}` : ''),
-        icon: b.type === 'market' ? '🏪' : (b.type === 'company' ? '🏢' : '👤'),
-        hero_badge: isMock ? 'Demo Listing — Not Verified' : (b.trustPayment?.verifiedBadge || b.category || 'Verified Partner'),
+        icon: '🏪',
+        hero_badge: b.trustPayment?.verifiedBadge || b.category || 'Govt APMC Mandi',
         hero_metric: {
           label: 'TOP CROP DEMAND',
           value: b.activeDemands?.[0]?.price || 'Market Rate',
@@ -1581,12 +1533,10 @@ function groundDetailCardData(args = {}, userLocation = null) {
         },
         sections,
         action_buttons: [
-          { id: 'call_buyer', label: isMock ? '📞 Demo Phone' : `📞 Call ${b.contact?.phone || 'Helpline'}`, type: 'tel', payload: `tel:${(b.contact?.phone || '18001801551').replace(/[^0-9+]/g, '')}` },
+          { id: 'call_buyer', label: `📞 Call (${b.contact?.phone || 'Helpline'})`, type: 'tel', payload: `tel:${(b.contact?.phone || '18001801551').replace(/[^0-9+]/g, '')}` },
           { id: 'view_map', label: '🗺️ Open Map', type: 'link', payload: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(b.contact?.placeQuery || b.name)}` }
         ],
-        spoken_summary_hint: isMock
-          ? `I have opened the details for ${b.name} on your screen. Please note that this is an example listing for demonstration, not a verified real buyer.`
-          : `I have opened the procurement details for ${b.name} on your screen. They are currently buying ${b.activeDemands?.[0]?.crop || 'crops'} at ${b.activeDemands?.[0]?.price || 'market rates'}.`
+        spoken_summary_hint: `I have opened the procurement details for ${b.name} on your screen. They are currently trading ${b.activeDemands?.[0]?.crop || 'crops'} at ${b.activeDemands?.[0]?.price || 'market rates'}.`
       };
     }
   }

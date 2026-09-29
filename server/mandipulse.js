@@ -132,7 +132,9 @@ async function scrapeMandi(mandiConfig) {
     clearTimeout(timeout);
 
     if (!resp.ok) {
-      console.warn(`[mandipulse] HTTP ${resp.status} for ${slug}`);
+      const errSnippet = await resp.text().catch(() => '');
+      const cleanSnippet = errSnippet.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 150);
+      console.warn(`[mandipulse] HTTP ${resp.status} for ${slug} (${cleanSnippet || 'No response body'})`);
       return cached ? cached.data : [];
     }
 

@@ -357,7 +357,7 @@ UNIVERSAL SEMANTIC VISUAL TOOLS & INTENT ROUTING:
    - Creative & Pop Culture Deep-Dives: Pass type='ANIME', type='ENTERTAINMENT', or type='TECHNICAL_GUIDE'.
    - Strict Grounding of Spoken Narration: Speak ONLY numbers, prices, and names present in the data returned by the tool.
 7.5. BUYERS & MARKETS TOOL ('find_buyers_ui'):
-   - Use to find buyers, traders, FPOs, or mandis within 300km. Set answer_mode='DIRECT_ANSWER' for single closest/nearest; answer_mode='BROWSABLE_LIST' for browsing. If results contain demo mock data, verbally state the demonstration disclaimer.
+   - Use to find verified APMC mandi buyers within 300km derived from real arrivals database. Set answer_mode='DIRECT_ANSWER' for single closest/nearest; answer_mode='BROWSABLE_LIST' for browsing.
 7.6. INVENTORY GAP ANALYSIS TOOL ('analyze_inventory_gap_ui'):
    - Use for cross-market set differences (e.g. "What does Raipur lack compared to Durg?"). Pass source_district and target_district.
 

@@ -119,26 +119,41 @@ router.post('/refresh', async (req, res) => {
     const mpCount = await mandipulse.syncMandiPulseToDb(db);
 
     // 2. Sync data.gov.in if key present
-    let govResult = { refreshed: true };
+    let govResult = null;
     const apiKey = process.env.DATA_GOV_API_KEY;
     if (apiKey) {
       try {
         govResult = await mandi.manualRefresh(apiKey);
       } catch (err) {
+        govResult = { success: false, error: err.message };
         console.warn('[refresh] data.gov.in sync warning:', err.message);
       }
+    } else {
+      govResult = { success: false, error: 'DATA_GOV_API_KEY not configured' };
     }
 
     const meta = db.getSyncMeta('Raipur');
+    const mpSyncedCount = typeof mpCount === 'number' ? mpCount : 0;
+    const govSyncedCount = govResult?.result?.rows_upserted || (govResult?.refreshed ? 1 : 0);
+    const totalFreshRows = mpSyncedCount + (typeof govSyncedCount === 'number' ? govSyncedCount : 0);
+    const syncSucceeded = totalFreshRows > 0;
+
     res.json({
-      refreshed: true,
-      mandipulse_synced: mpCount,
+      success: syncSucceeded,
+      refreshed: syncSucceeded,
+      rows_synced: totalFreshRows,
+      mandipulse_synced: mpSyncedCount,
       data_gov: govResult,
-      last_updated: meta.last_updated
+      last_updated: meta.last_updated,
+      latest_data_date: meta.latest_data_date,
+      stale: meta.stale,
+      message: syncSucceeded
+        ? `Prices refreshed successfully (${totalFreshRows} records updated).`
+        : `Upstream live sync unavailable right now (data.gov.in & MandiPulse). Showing stored records from ${meta.latest_data_date || 'offline baseline'}.`
     });
   } catch (err) {
     console.error('[refresh] Refresh error:', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
