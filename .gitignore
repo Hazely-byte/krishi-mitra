@@ -47,6 +47,10 @@ bench/
 latency-report.md
 trailing-silence-report*.md
 test-api-key.js
+chrome_test_profile*/
+.chrome-test-*/
+test_screenshots/
+
 
 # Operating System & IDE files
 .DS_Store
@@ -54,8 +58,24 @@ Thumbs.db
 .vscode/
 .idea/
 
-# AI and IDE artifacts
+# AI and IDE artifacts & test scripts
 agents.md
+AGENTS.md
 claude.md
+CLAUDE.md
 .cursorrules
 .cursor/
+.antigravity/
+.gemini/
+brain/
+scratch/
+test-*.js
+test_*.js
+verify_*.js
+task-*.log
+*REPORT*.*
+*Report*.*
+report_*.*
+build_*.*
+generate_*.*
+

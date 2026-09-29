@@ -51,6 +51,7 @@
   let tFirstAudioScheduled = 0;
   let tPlaybackAudible = 0;
   let audioChunksInTurn = 0;
+  let setupReceived = false;
 
   // Callbacks registered by UI
   let callbacks = {
@@ -183,86 +184,93 @@
     const TARGET_CHUNK_SAMPLES = Math.round(TARGET_SAMPLE_RATE * CHUNK_DURATION_SEC); // 320 samples
 
     audioWorkletNode.port.onmessage = (event) => {
-      if (!isLive || !ws || ws.readyState !== WebSocket.OPEN) return;
+      try {
+        if (!isLive || !ws || ws.readyState !== WebSocket.OPEN) return;
 
-      const { audioData } = event.data;
+        const { audioData } = event.data;
+        if (!audioData || audioData.length === 0) return;
 
-      // Energy calculation for VAD & visualizer
-      let sumSquares = 0;
-      for (let i = 0; i < audioData.length; i++) {
-        sumSquares += audioData[i] * audioData[i];
-      }
-      const rms = Math.sqrt(sumSquares / audioData.length);
-
-      if (typeof callbacks.onVisualizer === 'function') {
-        try { callbacks.onVisualizer(rms); } catch (e) {}
-      }
-
-      if (isMuted) return; // Discard mic samples when muted
-
-      // Downsample input data to 16kHz
-      const downsampled = downsampleFloat32(audioData, inputAudioContext.sampleRate, TARGET_SAMPLE_RATE);
-      for (let i = 0; i < downsampled.length; i++) {
-        micPcmAccumulator.push(downsampled[i]);
-      }
-
-      const now = performance.now();
-      const SPEECH_THRESHOLD = 0.012;
-
-      if (rms > SPEECH_THRESHOLD) {
-        silenceStartTime = 0;
-        if (!isSpeaking) {
-          isSpeaking = true;
-          tSpeechStart = now;
-          tFirstAudioReceived = 0;
-          tFirstAudioScheduled = 0;
-          tPlaybackAudible = 0;
-          audioChunksInTurn = 0;
-
-          setState('listening');
-
-          ws.send(JSON.stringify({
-            type: 'speech_event',
-            event: 'speech_start',
-            tSpeechStart
-          }));
+        // Energy calculation for VAD & visualizer
+        let sumSquares = 0;
+        for (let i = 0; i < audioData.length; i++) {
+          sumSquares += audioData[i] * audioData[i];
         }
-      } else if (isSpeaking) {
-        if (silenceStartTime === 0) {
-          silenceStartTime = now;
-        } else if (now - silenceStartTime >= 400) {
-          isSpeaking = false;
-          tSpeechEnd = silenceStartTime;
-          tLastSpeechChunkSent = now;
+        const rms = Math.sqrt(sumSquares / audioData.length);
 
-          ws.send(JSON.stringify({
-            type: 'speech_event',
-            event: 'speech_end',
-            tSpeechStart,
-            tSpeechEnd,
-            tLastSpeechChunkSent
-          }));
-        }
-      }
-
-      // Flush 20ms chunks (320 samples)
-      while (micPcmAccumulator.length >= TARGET_CHUNK_SAMPLES) {
-        const chunkSamples = micPcmAccumulator.splice(0, TARGET_CHUNK_SAMPLES);
-        const pcm16 = new Int16Array(chunkSamples.length);
-        for (let i = 0; i < chunkSamples.length; i++) {
-          const s = Math.max(-1, Math.min(1, chunkSamples[i]));
-          pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+        if (typeof callbacks.onVisualizer === 'function') {
+          try { callbacks.onVisualizer(rms); } catch (e) {}
         }
 
-        const b64 = arrayBufferToBase64(pcm16.buffer);
-        ws.send(JSON.stringify({
-          realtimeInput: {
-            audio: {
-              mimeType: "audio/pcm;rate=16000",
-              data: b64
-            }
+        if (isMuted) return; // Discard mic samples when muted
+
+        // Downsample input data to 16kHz
+        const downsampled = downsampleFloat32(audioData, inputAudioContext.sampleRate, TARGET_SAMPLE_RATE);
+        for (let i = 0; i < downsampled.length; i++) {
+          micPcmAccumulator.push(downsampled[i]);
+        }
+
+        const now = performance.now();
+        const SPEECH_THRESHOLD = 0.012;
+
+        if (rms > SPEECH_THRESHOLD) {
+          silenceStartTime = 0;
+          if (!isSpeaking) {
+            isSpeaking = true;
+            tSpeechStart = now;
+            tFirstAudioReceived = 0;
+            tFirstAudioScheduled = 0;
+            tPlaybackAudible = 0;
+            audioChunksInTurn = 0;
+
+            setState('listening');
+
+            ws.send(JSON.stringify({
+              type: 'speech_event',
+              event: 'speech_start',
+              tSpeechStart
+            }));
           }
-        }));
+        } else if (isSpeaking) {
+          if (silenceStartTime === 0) {
+            silenceStartTime = now;
+          } else if (now - silenceStartTime >= 1500) {
+            isSpeaking = false;
+            tSpeechEnd = silenceStartTime;
+            tLastSpeechChunkSent = now;
+
+            ws.send(JSON.stringify({
+              type: 'speech_event',
+              event: 'speech_end',
+              tSpeechStart,
+              tSpeechEnd,
+              tLastSpeechChunkSent
+            }));
+          }
+        }
+
+        // Flush 20ms chunks (320 samples)
+        while (micPcmAccumulator.length >= TARGET_CHUNK_SAMPLES) {
+          const chunkSamples = micPcmAccumulator.splice(0, TARGET_CHUNK_SAMPLES);
+          const pcm16 = new Int16Array(chunkSamples.length);
+          for (let i = 0; i < chunkSamples.length; i++) {
+            let s = chunkSamples[i];
+            if (!Number.isFinite(s)) s = 0;
+            s = Math.max(-1, Math.min(1, s));
+            pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+          }
+
+          const b64 = arrayBufferToBase64(pcm16.buffer);
+          ws.send(JSON.stringify({
+            realtimeInput: {
+              audio: {
+                mimeType: "audio/pcm;rate=16000",
+                data: b64
+              }
+            }
+          }));
+        }
+      } catch (err) {
+        console.error('[voice] Audio processing error:', err);
       }
     };
 
@@ -353,7 +361,8 @@
         return;
       }
 
-      if (payload.type === 'setupComplete' || payload.type === 'session_initialized') {
+      if (payload.type === 'setupComplete' || payload.type === 'session_initialized' || payload.setupComplete) {
+        setupReceived = true;
         setState('online');
         return;
       }
@@ -375,6 +384,9 @@
 
       if (payload.type === 'user_transcript' && payload.text) {
         emitTranscript({ role: 'user', text: payload.text, isFinal: false });
+        if (window.KrishiTemplates && typeof window.KrishiTemplates.selectOption === 'function') {
+          window.KrishiTemplates.selectOption(payload.text);
+        }
       }
 
       if (payload.type === 'transcript' && payload.text) {
@@ -391,7 +403,17 @@
 
       // Client-side Tool Call dispatched from Gemini Live via Server
       if (payload.type === 'toolCall') {
+        if (window.KrishiDevConsole && typeof window.KrishiDevConsole.log === 'function') {
+          window.KrishiDevConsole.log('toolCall', `Tool Call: ${payload.name}`, payload, 'pending');
+        }
         handleClientToolCall(payload);
+        return;
+      }
+
+      if (payload.type === 'crop_vision_result') {
+        if (window.KrishiTemplates && typeof window.KrishiTemplates.handleCropVisionResult === 'function') {
+          window.KrishiTemplates.handleCropVisionResult(payload);
+        }
         return;
       }
 
@@ -420,10 +442,143 @@
   }
 
   /**
-   * Handle client-side tool calls (e.g. autofill_user_address)
+   * Handle client-side tool calls (e.g. autofill_user_address, compare_markets_ui)
    */
   function handleClientToolCall(toolCall) {
-    const { callId, name, args } = toolCall;
+    const { callId, name, args, templateData } = toolCall;
+
+    if (name === 'render_comparison_ui' || name === 'compare_markets_ui') {
+      emitToolStatus({ name, status: 'running' });
+      const canvas = document.getElementById('voice-interactive-canvas');
+      const dataToRender = templateData || (args && args.templateData) || args;
+      if (canvas && dataToRender) {
+        if (window.KrishiGenerativeRenderer && typeof window.KrishiGenerativeRenderer.renderComparison === 'function') {
+          window.KrishiGenerativeRenderer.renderComparison(canvas, dataToRender);
+        } else if (window.KrishiTemplates && typeof window.KrishiTemplates.renderComparison === 'function') {
+          window.KrishiTemplates.renderComparison(canvas, dataToRender);
+        }
+      }
+      emitToolStatus({ name, status: 'completed' });
+      return;
+    }
+
+    if (name === 'close_ui_template' || name === 'close_all_ui') {
+      emitToolStatus({ name, status: 'running' });
+      if (window.KrishiGenerativeRenderer && typeof window.KrishiGenerativeRenderer.closeAll === 'function') {
+        window.KrishiGenerativeRenderer.closeAll();
+      }
+      if (window.KrishiTemplates && typeof window.KrishiTemplates.closeAllUI === 'function') {
+        window.KrishiTemplates.closeAllUI(true);
+      } else if (window.KrishiTemplates && typeof window.KrishiTemplates.closeTemplate === 'function') {
+        window.KrishiTemplates.closeTemplate(args?.template_name || 'two_way_comparison', args?.selected_option_id);
+      }
+      emitToolStatus({ name, status: 'completed' });
+      return;
+    }
+
+    const dataToRender = templateData || (args && args.templateData) || args;
+    const isDetailPrimitive = (dataToRender && dataToRender.primitive === 'detail_card') ||
+      name === 'render_detail_card_ui' ||
+      name === 'show_single_rate_ui' ||
+      name === 'show_location_ui' ||
+      name === 'show_detail_window' ||
+      name === 'analyze_inventory_gap_ui';
+
+    if (isDetailPrimitive) {
+      emitToolStatus({ name, status: 'running' });
+      const canvas = document.getElementById('voice-interactive-canvas');
+      if (canvas && dataToRender) {
+        if (window.KrishiGenerativeRenderer && typeof window.KrishiGenerativeRenderer.renderDetailCard === 'function') {
+          window.KrishiGenerativeRenderer.renderDetailCard(canvas, dataToRender);
+        } else if (window.KrishiTemplates && typeof window.KrishiTemplates.renderDetailWindow === 'function') {
+          window.KrishiTemplates.renderDetailWindow(canvas, dataToRender);
+        }
+      }
+      emitToolStatus({ name, status: 'completed' });
+      return;
+    }
+
+    if (name === 'render_selector_menu_ui' || name === 'show_commodity_list_ui' || name === 'show_options_menu' || name === 'find_buyers_ui') {
+      emitToolStatus({ name, status: 'running' });
+      const canvas = document.getElementById('voice-interactive-canvas');
+      if (canvas && dataToRender) {
+        if (window.KrishiGenerativeRenderer && typeof window.KrishiGenerativeRenderer.renderSelectorMenu === 'function') {
+          window.KrishiGenerativeRenderer.renderSelectorMenu(canvas, dataToRender);
+        } else if (window.KrishiTemplates && typeof window.KrishiTemplates.renderOptionsMenu === 'function') {
+          window.KrishiTemplates.renderOptionsMenu(canvas, dataToRender);
+        }
+      }
+      emitToolStatus({ name, status: 'completed' });
+      return;
+    }
+
+
+    if (name === 'go_back_to_options') {
+      emitToolStatus({ name: 'go_back_to_options', status: 'running' });
+      const resetVisited = Boolean(args && args.reset_visited);
+      if (window.KrishiTemplates && typeof window.KrishiTemplates.goBackToOptionsMenu === 'function') {
+        window.KrishiTemplates.goBackToOptionsMenu(true, resetVisited);
+      }
+      emitToolStatus({ name: 'go_back_to_options', status: 'completed' });
+      return;
+    }
+
+    if (name === 'open_sell_crop_form') {
+      emitToolStatus({ name: 'open_sell_crop_form', status: 'running' });
+      const canvas = document.getElementById('voice-interactive-canvas');
+      if (canvas && window.KrishiTemplates && typeof window.KrishiTemplates.renderSellCropForm === 'function') {
+        window.KrishiTemplates.renderSellCropForm(canvas, args || {});
+      }
+      emitToolStatus({ name: 'open_sell_crop_form', status: 'completed' });
+      return;
+    }
+
+    if (name === 'autofill_crop_form') {
+      emitToolStatus({ name: 'autofill_crop_form', status: 'running' });
+      const fields = (args && args.fields) ? args.fields : (args || {});
+      if (window.KrishiTemplates && typeof window.KrishiTemplates.autofillCropForm === 'function') {
+        window.KrishiTemplates.autofillCropForm(fields);
+      }
+      emitToolStatus({ name: 'autofill_crop_form', status: 'completed' });
+      return;
+    }
+
+    if (name === 'submit_crop_form') {
+      emitToolStatus({ name: 'submit_crop_form', status: 'running' });
+      if (window.KrishiTemplates && typeof window.KrishiTemplates.submitCropForm === 'function') {
+        window.KrishiTemplates.submitCropForm();
+      }
+      emitToolStatus({ name: 'submit_crop_form', status: 'completed' });
+      return;
+    }
+
+    if (name === 'trigger_camera' || name === 'trigger_camera_capture') {
+      emitToolStatus({ name: 'trigger_camera', status: 'running' });
+      if (window.KrishiTemplates && typeof window.KrishiTemplates.triggerCamera === 'function') {
+        window.KrishiTemplates.triggerCamera();
+      } else if (window.KrishiTemplates && typeof window.KrishiTemplates.openCropCamera === 'function') {
+        window.KrishiTemplates.openCropCamera();
+      }
+      emitToolStatus({ name: 'trigger_camera', status: 'completed' });
+      return;
+    }
+
+    if (name === 'paginate_options') {
+      emitToolStatus({ name: 'paginate_options', status: 'running' });
+      const dir = (args && args.direction) ? args.direction : 'NEXT';
+      const canvas = document.getElementById('voice-interactive-canvas');
+      const isDetailActive = canvas && (canvas.querySelector('.DetailCardPrimitive') || canvas.querySelector('.gen-detail-wrap'));
+      if (isDetailActive && window.KrishiTemplates && typeof window.KrishiTemplates.goBackToOptionsMenu === 'function') {
+        window.KrishiTemplates.goBackToOptionsMenu(true, false);
+      } else if (window.KrishiGenerativeRenderer && typeof window.KrishiGenerativeRenderer.paginateMenu === 'function') {
+        window.KrishiGenerativeRenderer.paginateMenu(dir);
+      } else if (window.KrishiTemplates && typeof window.KrishiTemplates.paginateMenu === 'function') {
+        window.KrishiTemplates.paginateMenu(dir);
+      }
+      emitToolStatus({ name: 'paginate_options', status: 'completed' });
+      return;
+    }
+
     if (name === 'autofill_user_address') {
       emitToolStatus({ name: 'autofill_user_address', status: 'running' });
 
@@ -548,7 +703,9 @@
 
       // 4. WebSocket connection
       const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${wsProtocol}//${window.location.host}/live`;
+      const googleToken = localStorage.getItem('krishi_google_token') || '';
+      const wsUrl = `${wsProtocol}//${window.location.host}/live?token=${encodeURIComponent(googleToken)}`;
+      setupReceived = false;
       ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {
@@ -576,10 +733,21 @@
       };
 
       ws.onerror = (err) => {
-        emitError(err);
+        console.error('[DEBUG-MIC] client ws onerror:', err);
+        if (!setupReceived) {
+          emitError(new Error('CUDA is not available'));
+        } else {
+          emitError(err);
+        }
       };
 
-      ws.onclose = () => {
+      ws.onclose = (evt) => {
+        if (!setupReceived) {
+          emitError(new Error('CUDA is not available'));
+        } else if (evt && evt.code !== 1000) {
+          const reasonText = evt.reason || `Connection lost (code ${evt.code})`;
+          emitError(new Error(reasonText));
+        }
         stop();
       };
 
@@ -655,6 +823,111 @@
     mute,
     isRunning: () => isLive,
     isMuted: () => isMuted,
+    sendSelection: function (text) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'user_selection',
+          text: text
+        }));
+      }
+    },
+    sendMenuSelection: function (optionId, market = 'Raipur APMC', commodity = 'Paddy') {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        let text = `Show me ${optionId} for ${market}`;
+        if (optionId === 'trends') {
+          text = `Show me rates and trends for ${market}`;
+        } else if (optionId === 'map') {
+          text = `Show me the map and route for ${market}`;
+        } else if (optionId === 'contact') {
+          text = `Show me contact information for ${market}`;
+        }
+        ws.send(JSON.stringify({
+          type: 'user_selection',
+          text: text
+        }));
+      }
+    },
+    sendScreenStateUpdate: function (view, activeEntity = null, visibleData = {}) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'screen_state_update',
+          view,
+          active_entity: activeEntity,
+          visible_data: visibleData
+        }));
+      }
+    },
+    sendUIVerification: function (data) {
+      if (window.KrishiDevConsole && typeof window.KrishiDevConsole.log === 'function') {
+        let summary = '';
+        if (data.status === 'success') {
+          summary = `Verified: ${data.view || 'UI'} (${data.rendered_items ?? 0} items)`;
+        } else if (data.status === 'empty') {
+          summary = `Empty: ${data.view || 'UI'} (0 items)`;
+        } else {
+          summary = `FAILED: ${data.view || 'UI'} - ${data.error || 'Render exception'}`;
+        }
+        window.KrishiDevConsole.log('ui_verification', summary, data, data.status);
+      }
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        const { type: cardType, ...rest } = (data || {});
+        ws.send(JSON.stringify({
+          ...rest,
+          card_type: cardType,
+          type: 'ui_verification'
+        }));
+      }
+    },
+    sendClientSelection: function (payload) {
+      if (window.KrishiDevConsole && typeof window.KrishiDevConsole.log === 'function') {
+        window.KrishiDevConsole.log('client_selection', `User tapped: ${payload.label || payload.selected_id}`, payload, 'info');
+      }
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'client_selection',
+          ...payload
+        }));
+      }
+    },
+    sendVoiceCommand: function (cmd) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'user_selection',
+          text: cmd
+        }));
+      }
+    },
+    closeAllUI: function () {
+      if (window.KrishiGenerativeRenderer && typeof window.KrishiGenerativeRenderer.closeAll === 'function') {
+        window.KrishiGenerativeRenderer.closeAll();
+      }
+      if (window.KrishiTemplates && typeof window.KrishiTemplates.closeAllUI === 'function') {
+        window.KrishiTemplates.closeAllUI(false);
+      }
+    },
+    sendCropImage: function (base64Data) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'crop_image_upload',
+          image: base64Data
+        }));
+      }
+    },
+    openSellCropForm: function (data = {}) {
+      handleClientToolCall({ callId: 'manual_' + Date.now(), name: 'open_sell_crop_form', args: data });
+    },
+    autofillCropForm: function (fields = {}) {
+      handleClientToolCall({ callId: 'manual_' + Date.now(), name: 'autofill_crop_form', args: { fields } });
+    },
+    submitCropForm: function () {
+      handleClientToolCall({ callId: 'manual_' + Date.now(), name: 'submit_crop_form', args: {} });
+    },
+    triggerCamera: function () {
+      handleClientToolCall({ callId: 'manual_' + Date.now(), name: 'trigger_camera', args: {} });
+    },
+    paginateOptions: function (direction = 'NEXT') {
+      handleClientToolCall({ callId: 'manual_' + Date.now(), name: 'paginate_options', args: { direction } });
+    },
     autofillUserAddress: (address) => handleClientToolCall({ callId: 'manual_' + Date.now(), name: 'autofill_user_address', args: { address } })
   };
 

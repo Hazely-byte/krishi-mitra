@@ -16,20 +16,32 @@ if %errorlevel% equ 0 (
     timeout /t 2 /nobreak >nul 2>&1 || ping 127.0.0.1 -n 3 >nul
 )
 
-:: 2. Ensure Tailscale Serve is active on http://localhost:3000
+:: 2. Ensure Tailscale is running
+tailscale status >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [INFO] Starting Tailscale...
+    tailscale up
+    timeout /t 2 /nobreak >nul 2>&1
+)
+
+:: 3. Activate Tailscale Serve (HTTPS proxy to local HTTP server)
+::    This gives tablet/mobile a real https:// origin for getUserMedia (mic access)
 echo [INFO] Ensuring Tailscale Serve is active on http://localhost:3000...
 tailscale serve --bg http://localhost:3000 >nul 2>&1
 
-:: 3. Print Tailscale Serve status and access URL
+:: 4. Print status and access URLs
 echo.
 echo ====================================================
-echo 🌾 KRISHI MITRA IS READY!
+echo   KRISHI MITRA IS READY!
 echo ====================================================
-tailscale serve status
 echo.
-for /f "tokens=1" %%a in ('tailscale serve status ^| findstr /i "https://"') do (
-    echo Access via: %%a/
-)
+echo   Local:     http://localhost:3000/
+echo   Tailscale: https://desktop-j1b4dl2.tail9c124d.ts.net/
+echo.
+echo   The Tailscale URL provides real HTTPS, which is
+echo   required for microphone access on mobile devices.
+echo.
+tailscale serve status 2>nul
 echo ====================================================
 echo.
 

@@ -19,5 +19,7 @@
 
 @media (min-width: 768px) {
   .screen { padding-top: 64px; padding-bottom: 24px; }
-  .screen.no-nav { padding-top: 0; }
+  .screen.no-nav,
+  .screen:has(.header-bar),
+  #screen-ai { padding-top: 0; }
 }

@@ -1,0 +1,108 @@
+/* ============================================================
+   Krishi Mitra — templates/generative-renderer.css
+   Generative Semantic UI: Content-Driven Sizing & Centering
+   ============================================================ */
+
+/* 1. Canvas Centering — Dead-center on the screen */
+#voice-interactive-canvas,
+.voice-interactive-canvas,
+.voice-interactive-canvas.tpl-active {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  align-items: center !important;
+  min-height: 0;
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+/* Ensure voice idle prompt is completely hidden when canvas is active */
+.tpl-active .voice-idle-prompt,
+#voice-interactive-canvas.tpl-active .voice-idle-prompt {
+  display: none !important;
+}
+
+/* 2. Content-Driven Sizing Primitives (Shrink-wrap around content) */
+.DetailCardPrimitive,
+.SelectorMenuPrimitive,
+.ComparisonPrimitive,
+.gen-root-container,
+.gen-comparison-wrap,
+.gen-selector-wrap,
+.gen-detail-wrap {
+  height: max-content !important;
+  max-height: 85vh !important;
+  overflow-y: auto;
+  overflow-x: hidden;
+  width: 100%;
+  max-width: 440px;
+  margin: auto;
+  box-sizing: border-box;
+}
+
+/* Ensure child cards inside comparison grid do not stretch to fixed heights */
+.gen-comparison-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  width: 100%;
+  align-items: start;
+}
+
+.gen-card {
+  height: max-content;
+  box-sizing: border-box;
+}
+
+/* 3. Empty State Notice — Shrink-wraps tightly inside card */
+.empty-state-notice {
+  padding: 16px 20px;
+  margin: 8px 0;
+  background: #f8fafc;
+  border: 1.5px dashed #cbd5e1;
+  border-radius: 12px;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: center;
+  line-height: 1.4;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* 4. Structured Specs Grid & Rows */
+.gen-specs-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 6px 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.gen-spec-item {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+}
+
+.gen-spec-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.gen-spec-val {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1e293b;
+}

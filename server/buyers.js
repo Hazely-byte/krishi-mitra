@@ -24,6 +24,7 @@ const CURATED_COMPANIES = [
     state: 'Chhattisgarh',
     coords: { lat: 21.2450, lng: 81.6320 },
     verified: true,
+    isMockData: true,
     licenseNo: 'CG-GOVT-SMC-01',
     activeDemands: [
       { crop: 'Paddy (Dhan) Grade A', cropHi: 'धान (ग्रेड ए)', price: '₹2,320/q', grade: 'Grade A / FAQ', minQty: '20 Quintals' },
@@ -52,6 +53,7 @@ const CURATED_COMPANIES = [
     state: 'Chhattisgarh',
     coords: { lat: 21.1904, lng: 81.2849 },
     verified: true,
+    isMockData: true,
     licenseNo: 'SFAC-FPO-CG-042',
     activeDemands: [
       { crop: 'Organic Wheat', cropHi: 'जैविक गेहूं', price: '₹2,850/q', grade: 'Certified Organic', minQty: '15 Quintals' },
@@ -81,6 +83,7 @@ const CURATED_COMPANIES = [
     state: 'Chhattisgarh',
     coords: { lat: 20.2719, lng: 81.4925 },
     verified: true,
+    isMockData: true,
     licenseNo: 'CG-MILLET-FPO-108',
     activeDemands: [
       { crop: 'Kodo Millet', cropHi: 'कोदो मिलेट', price: '₹3,900/q', grade: 'Cleaned FAQ', minQty: '10 Quintals' },
@@ -110,6 +113,7 @@ const CURATED_COMPANIES = [
     state: 'Chhattisgarh',
     coords: { lat: 22.0797, lng: 82.1409 },
     verified: true,
+    isMockData: true,
     licenseNo: 'NABARD-FPO-CG-219',
     activeDemands: [
       { crop: 'Chana (Gram)', cropHi: 'चना (देसी)', price: '₹5,400/q', grade: 'FAQ Grade', minQty: '10 Quintals' },
@@ -138,6 +142,7 @@ const CURATED_COMPANIES = [
     state: 'Chhattisgarh',
     coords: { lat: 21.0974, lng: 81.0388 },
     verified: true,
+    isMockData: true,
     licenseNo: 'SFAC-FPO-CG-088',
     activeDemands: [
       { crop: 'Arhar (Tur)', cropHi: 'अरहर (तूर)', price: '₹7,150/q', grade: 'FAQ Grade', minQty: '12 Quintals' },
@@ -167,6 +172,7 @@ const CURATED_COMPANIES = [
     state: 'Chhattisgarh',
     coords: { lat: 21.7346, lng: 81.9392 },
     verified: true,
+    isMockData: true,
     licenseNo: 'CG-IND-RMC-312',
     activeDemands: [
       { crop: 'Paddy (Swarna)', cropHi: 'धान (स्वर्णा)', price: '₹2,360/q', grade: 'Milling Quality', minQty: '50 Quintals' },
@@ -198,6 +204,7 @@ const CURATED_TRADERS = [
     state: 'Chhattisgarh',
     coords: { lat: 21.5540, lng: 81.7610 },
     verified: true,
+    isMockData: true,
     licenseNo: 'CG-NRA-TR-014',
     activeDemands: [
       { crop: 'Paddy (Dhan)', cropHi: 'धान', price: '₹2,340/q', grade: 'Dry FAQ', minQty: '10 Quintals' },
@@ -227,6 +234,7 @@ const CURATED_TRADERS = [
     state: 'Chhattisgarh',
     coords: { lat: 21.1904, lng: 81.2849 },
     verified: true,
+    isMockData: true,
     licenseNo: 'CG-DRG-CA-088',
     activeDemands: [
       { crop: 'Tomato (टमाटर)', cropHi: 'टमाटर', price: '₹1,850/q', grade: 'Firm Red Crate', minQty: '5 Quintals' },
@@ -256,6 +264,7 @@ const CURATED_TRADERS = [
     state: 'Chhattisgarh',
     coords: { lat: 21.0974, lng: 81.0388 },
     verified: true,
+    isMockData: true,
     licenseNo: 'CG-RJN-TR-441',
     activeDemands: [
       { crop: 'Chana (Gram)', cropHi: 'चना', price: '₹5,350/q', grade: 'Bold FAQ', minQty: '10 Quintals' },
@@ -285,6 +294,7 @@ const CURATED_TRADERS = [
     state: 'Chhattisgarh',
     coords: { lat: 22.0797, lng: 82.1409 },
     verified: true,
+    isMockData: true,
     licenseNo: 'CG-BSP-TR-192',
     activeDemands: [
       { crop: 'Wheat (Lokwan)', cropHi: 'गेहूं (लोकवान)', price: '₹2,480/q', grade: 'FAQ Grade', minQty: '15 Quintals' },
@@ -313,6 +323,7 @@ const CURATED_TRADERS = [
     state: 'Chhattisgarh',
     coords: { lat: 20.7071, lng: 81.5498 },
     verified: true,
+    isMockData: true,
     licenseNo: 'CG-DHM-TR-109',
     activeDemands: [
       { crop: 'Paddy (Dhan)', cropHi: 'धान', price: '₹2,310/q', grade: 'FAQ Grade', minQty: '10 Quintals' },
@@ -397,6 +408,7 @@ function getApmcBuyersFromDb(userLat, userLng) {
         state: m.state,
         coords: { lat: coords.lat, lng: coords.lng },
         verified: true,
+        isMockData: false,
         licenseNo: `CG-APMC-${m.district.toUpperCase()}-01`,
         activeDemands,
         contact: {
@@ -423,10 +435,12 @@ function getApmcBuyersFromDb(userLat, userLng) {
  * Retrieve buyers within radiusKm (default 300km) strictly sorted by distance ascending (nearest first).
  * Filters by type: 'all' | 'market' | 'company' | 'trader'.
  */
-function getBuyersRadius(userLat = haversine.DEFAULT_COORDS.lat, userLng = haversine.DEFAULT_COORDS.lng, radiusKm = 300, typeFilter = 'all') {
-  const uLat = (typeof userLat === 'number' && !isNaN(userLat)) ? userLat : haversine.DEFAULT_COORDS.lat;
-  const uLng = (typeof userLng === 'number' && !isNaN(userLng)) ? userLng : haversine.DEFAULT_COORDS.lng;
+function getBuyersRadius(userLat = null, userLng = null, radiusKm = 300, typeFilter = 'all', isUserGps = null) {
+  const hasValidCoords = typeof userLat === 'number' && !isNaN(userLat) && typeof userLng === 'number' && !isNaN(userLng);
+  const uLat = hasValidCoords ? userLat : haversine.DEFAULT_COORDS.lat;
+  const uLng = hasValidCoords ? userLng : haversine.DEFAULT_COORDS.lng;
   const maxRadius = (typeof radiusKm === 'number' && radiusKm > 0) ? radiusKm : 300;
+  const hasUserLocation = isUserGps !== null ? Boolean(isUserGps) : hasValidCoords;
 
   // 1. Gather APMCs, FPOs, and Registered Traders
   const apmcs = getApmcBuyersFromDb(uLat, uLng);
@@ -445,16 +459,36 @@ function getBuyersRadius(userLat = haversine.DEFAULT_COORDS.lat, userLng = haver
 
     const dist = haversine.calculateHaversineDistanceKm(uLat, uLng, buyer.coords.lat, buyer.coords.lng);
     if (dist <= maxRadius) {
+      const roundedDist = Math.round(dist * 10) / 10;
+      let distDisplay = '';
+      if (!hasUserLocation) {
+        distDisplay = 'Distance unavailable';
+      } else if (roundedDist < 1) {
+        distDisplay = '< 1 km';
+      } else {
+        distDisplay = `${roundedDist} km`;
+      }
+
       matched.push({
         ...buyer,
-        distanceKm: Math.round(dist * 10) / 10,
-        distanceDisplay: `${Math.round(dist * 10) / 10} km`
+        searchDistKm: roundedDist,
+        distanceKm: hasUserLocation ? roundedDist : null,
+        distanceDisplay: distDisplay,
+        hasUserLocation
       });
     }
   }
 
-  // 3. Strictly sort nearest first (distanceKm ascending)
-  matched.sort((a, b) => a.distanceKm - b.distanceKm);
+  // 3. Sort nearest first: if user location is known, sort by distanceKm; otherwise sort by searchDistKm
+  matched.sort((a, b) => {
+    if (hasUserLocation) {
+      if (a.distanceKm === null && b.distanceKm === null) return 0;
+      if (a.distanceKm === null) return 1;
+      if (b.distanceKm === null) return -1;
+      return a.distanceKm - b.distanceKm;
+    }
+    return a.searchDistKm - b.searchDistKm;
+  });
 
   return matched;
 }

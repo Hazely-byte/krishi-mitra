@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: krishi-mitra
+    runtime: node
+    plan: starter
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: HOST
+        value: 0.0.0.0
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_LIVE_MODEL
+        value: models/gemini-3.1-flash-live-preview
+      - key: GEMINI_TEXT_MODEL
+        value: gemini-3.8-flash
+      - key: GOOGLE_MAPS_API_KEY
+        sync: false
+      - key: DATA_GOV_API_KEY
+        sync: false
+      - key: GOOGLE_OAUTH_CLIENT_ID
+        sync: false
+      - key: GOOGLE_OAUTH_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_OAUTH_REDIRECT_URI
+        value: https://krishi-mitra-lo12.onrender.com/auth/google/callback

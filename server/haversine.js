@@ -165,9 +165,20 @@ function getMandiCoordinates(market, district) {
   return null;
 }
 
+function getMarketCoords(market, district) {
+  return getMandiCoordinates(market, district) || DEFAULT_COORDS;
+}
+
+function computeDistance(coords1, coords2) {
+  if (!coords1 || !coords2) return 0;
+  return calculateHaversineDistanceKm(coords1.lat, coords1.lng, coords2.lat, coords2.lng);
+}
+
 module.exports = {
   DEFAULT_COORDS,
   MANDI_COORDS,
   calculateHaversineDistanceKm,
-  getMandiCoordinates
+  getMandiCoordinates,
+  getMarketCoords,
+  computeDistance
 };

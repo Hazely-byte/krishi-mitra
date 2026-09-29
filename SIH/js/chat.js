@@ -80,13 +80,18 @@
     activeAbortController = new AbortController();
     const clientId = getClientId();
 
-    try {
+      const googleToken = localStorage.getItem('krishi_google_token') || '';
+      const headers = {
+        'Content-Type': 'application/json',
+        'X-Client-Id': clientId
+      };
+      if (googleToken) {
+        headers['Authorization'] = 'Bearer ' + googleToken;
+      }
+
       const response = await fetch('/api/chat/stream', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Client-Id': clientId
-        },
+        headers,
         body: JSON.stringify({
           session_id: sessionId,
           message: message.trim(),
@@ -99,7 +104,14 @@
 
       if (!response.ok) {
         const errJson = await response.json().catch(() => ({}));
-        throw new Error(errJson.error || `HTTP ${response.status}: Failed to send message`);
+        let msg = errJson.error;
+        if (response.status === 401 || response.status === 403) {
+          const isHi = (language || 'hi') === 'hi';
+          msg = isHi 
+            ? 'एआई चैट केवल अधिकृत खातों के लिए उपलब्ध है।' 
+            : 'AI chat is restricted to authorized accounts only.';
+        }
+        throw new Error(msg || `HTTP ${response.status}: Failed to send message`);
       }
 
       if (!response.body) {

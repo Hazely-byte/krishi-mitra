@@ -57,9 +57,8 @@ router.get('/', async (req, res) => {
   const needsFallback = result.count < 5 || (targetDistrictRecords.length === 0 && !q);
 
   if (needsFallback && !forceRefresh) {
-    console.log(`[mandi-routes] Sparse total count (${result.count}) or missing ${district} records (${targetDistrictRecords.length}), triggering targeted sync...`);
-    await ensureTargetData(true);
-    result = db.getMarketPricesRadius({ lat, lng, maxRadiusKm: radius, query: q, category });
+    // Non-blocking background sync: never hang or block live user queries
+    ensureTargetData(true).catch(e => console.warn('[mandi-routes] Background sync warning:', e.message));
   }
 
   const meta = db.getSyncMeta(district);

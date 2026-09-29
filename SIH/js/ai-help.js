@@ -585,8 +585,37 @@
           if (!voiceToolIndicator) return;
           if (tool.status === 'running') {
             setMicButtonState('processing');
-            voiceToolIndicator.textContent = '⏳ ' + ((window.i18n && i18n[currentLang].checking_prices) || 'Checking mandi prices...');
+            let indicatorText = (window.i18n && i18n[currentLang].checking_prices) || 'Checking mandi prices...';
+            if (tool.name === 'show_detail_window') {
+              indicatorText = currentLang === 'hi' ? 'विवरण लोड हो रहा है...' : 'Loading details...';
+            } else if (tool.name === 'show_options_menu') {
+              indicatorText = currentLang === 'hi' ? 'विकल्प तैयार हो रहे हैं...' : 'Preparing options...';
+            } else if (tool.name === 'get_current_screen_context') {
+              indicatorText = currentLang === 'hi' ? 'स्क्रीन देखी जा रही है...' : 'Checking screen...';
+            } else if (tool.name === 'close_all_ui') {
+              indicatorText = currentLang === 'hi' ? 'स्क्रीन बंद हो रही है...' : 'Closing screen...';
+            } else if (tool.name === 'go_back_to_options') {
+              indicatorText = currentLang === 'hi' ? 'वापस जा रहे हैं...' : 'Returning to options...';
+            } else if (tool.name === 'open_sell_crop_form') {
+              indicatorText = currentLang === 'hi' ? 'बिक्री फॉर्म खुल रहा है...' : 'Opening sell form...';
+            } else if (tool.name === 'autofill_crop_form') {
+              indicatorText = currentLang === 'hi' ? 'फॉर्म भरा जा रहा है...' : 'Autofilling form...';
+            } else if (tool.name === 'submit_crop_form') {
+              indicatorText = currentLang === 'hi' ? 'फसल दर्ज की जा रही है...' : 'Saving crop...';
+            }
+            voiceToolIndicator.textContent = '⏳ ' + indicatorText;
+
+            // Watchdog: Clear indicator automatically after 4 seconds to guarantee it never hangs
+            if (window._voiceIndicatorTimeout) clearTimeout(window._voiceIndicatorTimeout);
+            window._voiceIndicatorTimeout = setTimeout(() => {
+              if (voiceToolIndicator) voiceToolIndicator.textContent = '';
+              setMicButtonState('listening');
+            }, 4000);
           } else {
+            if (window._voiceIndicatorTimeout) {
+              clearTimeout(window._voiceIndicatorTimeout);
+              window._voiceIndicatorTimeout = null;
+            }
             voiceToolIndicator.textContent = '';
             setMicButtonState('speaking');
           }
@@ -608,10 +637,15 @@
             voiceErrorCard.classList.add('visible');
             const errSpan = voiceErrorCard.querySelector('.voice-error-text');
             if (errSpan) {
-              const isNotAllowed = err.name === 'NotAllowedError' || (err.message && err.message.includes('Permission'));
-              errSpan.textContent = isNotAllowed
-                ? ((window.i18n && i18n[currentLang].voice_mic_permission_error) || 'Microphone access denied. Please allow microphone in browser.')
-                : ((window.i18n && i18n[currentLang].voice_connection_error) || 'Connection error. Please retry.');
+              if (err && err.message === 'CUDA is not available') {
+                errSpan.textContent = 'CUDA is not available';
+                if (voiceStatusPill) voiceStatusPill.textContent = 'CUDA is not available';
+              } else {
+                const isNotAllowed = err.name === 'NotAllowedError' || (err.message && err.message.includes('Permission'));
+                errSpan.textContent = isNotAllowed
+                  ? ((window.i18n && i18n[currentLang].voice_mic_permission_error) || 'Microphone access denied. Please allow microphone in browser.')
+                  : ((window.i18n && i18n[currentLang].voice_connection_error) || 'Connection error. Please retry.');
+              }
             }
           }
         }
@@ -881,6 +915,15 @@
 
   window.exitVoiceMode = function () {
     exitVoiceMode();
+  };
+
+  window.triggerTestComparison = function () {
+    if (currentMode !== 'voice') {
+      setMode('voice');
+    }
+    if (window.KrishiTemplates && typeof window.KrishiTemplates.triggerTestComparison === 'function') {
+      window.KrishiTemplates.triggerTestComparison();
+    }
   };
 
   window.onLanguageChange = function () {

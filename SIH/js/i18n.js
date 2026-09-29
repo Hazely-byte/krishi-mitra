@@ -7,6 +7,7 @@ const i18n = {
   hi: {
     login_subtitle: 'कृषि मित्र — आपका खेती साथी',
     login_tagline: 'बेहतर आय के लिए स्मार्ट खेती निर्णय',
+    signin_google: 'Google से साइन इन करें',
     phone_placeholder: 'मोबाइल नंबर दर्ज करें',
     send_otp: '📱 OTP भेजें',
     otp_sent: 'आपके मोबाइल नंबर पर OTP भेजा गया',
@@ -223,6 +224,7 @@ const i18n = {
   en: {
     login_subtitle: 'Krishi Mitra — Your Farming Companion',
     login_tagline: 'Smart farming decisions for better income',
+    signin_google: 'Sign in with Google',
     phone_placeholder: 'Enter Mobile Number',
     send_otp: '📱 Send OTP',
     otp_sent: 'OTP sent to your mobile number',

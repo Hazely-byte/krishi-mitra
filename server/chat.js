@@ -4,6 +4,7 @@ const express = require('express');
 const crypto = require('crypto');
 const db = require('./db');
 const tools = require('./tools');
+const { requireOwner } = require('./auth');
 
 const router = express.Router();
 
@@ -79,8 +80,9 @@ CRITICAL RULES:
 /**
  * POST /api/chat/stream
  * NDJSON streaming endpoint for real-time AI conversation
+ * Protected: requires valid Google ID token belonging to allowed owner email
  */
-router.post('/stream', async (req, res) => {
+router.post('/stream', requireOwner, async (req, res) => {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return res.status(500).json({ error: 'Server GEMINI_API_KEY not configured' });

@@ -187,8 +187,15 @@
         `;
       }
 
+      const isMock = Boolean(b.isMockData);
+      const mockBadgeHtml = isMock ? `
+        <span class="buyer-mock-badge" style="display:inline-block; font-size:10.5px; font-weight:700; background:#fef3c7; color:#b45309; padding:2px 8px; border-radius:4px; margin-top:4px; border:1px solid #fde68a;">
+          ⚠️ Demo Listing — Not Verified
+        </span>
+      ` : '';
+
       return `
-        <div class="buyer-card" data-type="${b.type}" data-id="${b.id}">
+        <div class="buyer-card ${isMock ? 'buyer-card-mock' : ''}" data-type="${b.type}" data-id="${b.id}">
           <div class="buyer-header">
             <div class="buyer-avatar ${b.type}">
               ${avatarIcon}
@@ -197,6 +204,7 @@
               <div class="buyer-name" style="font-size:15px; font-weight:700; color:var(--gray-800);">${displayName}</div>
               <div class="buyer-type" style="font-size:12px; color:var(--gray-500); font-weight:500;">${displayCat}</div>
               <span class="buyer-distance-badge">📍 ${b.distanceDisplay || (b.distanceKm + ' km')} (${b.district})</span>
+              ${mockBadgeHtml}
             </div>
           </div>
 
@@ -335,6 +343,19 @@
     if (badgeEl) badgeEl.textContent = displayCat;
     if (locEl) locEl.textContent = `📍 ${buyer.district}, ${buyer.state}`;
     if (distEl) distEl.textContent = `📍 ${buyer.distanceDisplay || (buyer.distanceKm + ' km')}`;
+
+    // Demo disclaimer handling
+    const isMock = Boolean(buyer.isMockData);
+    const mockBadgeEl = document.getElementById('buyer-modal-mock-badge');
+    const mockDisclaimerEl = document.getElementById('buyer-mock-disclaimer');
+    if (mockBadgeEl) {
+      if (isMock) mockBadgeEl.classList.remove('hidden');
+      else mockBadgeEl.classList.add('hidden');
+    }
+    if (mockDisclaimerEl) {
+      if (isMock) mockDisclaimerEl.classList.remove('hidden');
+      else mockDisclaimerEl.classList.add('hidden');
+    }
 
     // Switch to Tab 1 (Map & Nav)
     switchBuyerTab('nav');
@@ -631,10 +652,11 @@
     const paymentEl = document.getElementById('buyer-trust-payment');
     const amenitiesEl = document.getElementById('buyer-trust-amenities');
 
+    const isMock = Boolean(buyer.isMockData);
     const trust = buyer.trustPayment || {};
-    const verifiedBadge = trust.verifiedBadge || 'Verified Procurement Partner';
-    const licenseNo = buyer.licenseNo || 'Verified Registered Entity';
-    const paymentTerms = trust.paymentTerms || 'Direct Bank Transfer / Account Payee Cheque within 24-48 hours upon weighment.';
+    const verifiedBadge = isMock ? 'Demo Listing — Not Verified' : (trust.verifiedBadge || 'Verified Procurement Partner');
+    const licenseNo = isMock ? `${buyer.licenseNo || 'MOCK-LIC'} (Demo Fixture)` : (buyer.licenseNo || 'Verified Registered Entity');
+    const paymentTerms = isMock ? `${trust.paymentTerms || 'Direct Bank Transfer'} (Demonstration placeholder)` : (trust.paymentTerms || 'Direct Bank Transfer / Account Payee Cheque within 24-48 hours upon weighment.');
     const amenities = Array.isArray(trust.amenities) ? trust.amenities : [
       'Electronic Weighbridge',
       'Covered Loading Bay',
@@ -642,7 +664,10 @@
       'Moisture Testing Facility'
     ];
 
-    if (badgeEl) badgeEl.textContent = `🛡️ ${verifiedBadge}`;
+    if (badgeEl) {
+      badgeEl.textContent = isMock ? `⚠️ ${verifiedBadge}` : `🛡️ ${verifiedBadge}`;
+      badgeEl.style.color = isMock ? '#b45309' : '';
+    }
     if (licenseEl) licenseEl.textContent = `License: ${licenseNo}`;
     if (paymentEl) paymentEl.textContent = paymentTerms;
 

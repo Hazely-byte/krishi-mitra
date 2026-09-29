@@ -769,28 +769,32 @@ function getMandiPricesScoped(commodityApiName, marketFilter = null) {
   const db = getDb();
   
   const isDistrictFilter = marketFilter && (marketFilter.toLowerCase() === 'raipur' || marketFilter.toLowerCase() === 'all');
+  const cleanTerm = (commodityApiName || '').replace(/\s*\([^)]*\)/g, '').trim().toLowerCase();
+  const rawTerm = (commodityApiName || '').toLowerCase();
+  const baseParams = { commodity: commodityApiName, cleanTerm, rawTerm };
 
   // 1. Try Raipur district first
   let queryRaipur = `
     WITH latest AS (
       SELECT MAX(arrival_date) AS max_date
       FROM mandi_prices
-      WHERE commodity = @commodity AND district = 'Raipur'
+      WHERE (commodity = @commodity OR LOWER(commodity) LIKE '%' || @cleanTerm || '%' OR @rawTerm LIKE '%' || LOWER(commodity) || '%')
+        AND district = 'Raipur'
     )
     SELECT mp.*, c.name_en, c.name_hi, c.category, 'raipur' AS scope
     FROM mandi_prices mp
     JOIN latest l ON mp.arrival_date = l.max_date
     LEFT JOIN commodities c ON mp.commodity = c.name_api
-    WHERE mp.commodity = @commodity AND mp.district = 'Raipur'
+    WHERE (mp.commodity = @commodity OR LOWER(mp.commodity) LIKE '%' || @cleanTerm || '%' OR @rawTerm LIKE '%' || LOWER(mp.commodity) || '%')
+      AND mp.district = 'Raipur'
   `;
-  const paramsRaipur = { commodity: commodityApiName };
   if (marketFilter && !isDistrictFilter) {
     const specificRaipur = db.prepare(queryRaipur + ` AND LOWER(mp.market) LIKE '%' || @market || '%' ORDER BY mp.modal_price DESC`)
-      .all({ ...paramsRaipur, market: marketFilter.toLowerCase() });
+      .all({ ...baseParams, market: marketFilter.toLowerCase() });
     if (specificRaipur.length > 0) return specificRaipur;
   }
   queryRaipur += ` ORDER BY mp.modal_price DESC`;
-  const raipurResults = db.prepare(queryRaipur).all(paramsRaipur);
+  const raipurResults = db.prepare(queryRaipur).all(baseParams);
   if (raipurResults.length > 0) return raipurResults;
 
   // 2. Try other Chhattisgarh markets
@@ -798,22 +802,23 @@ function getMandiPricesScoped(commodityApiName, marketFilter = null) {
     WITH latest AS (
       SELECT MAX(arrival_date) AS max_date
       FROM mandi_prices
-      WHERE commodity = @commodity AND state IN ('Chattisgarh', 'Chhattisgarh')
+      WHERE (commodity = @commodity OR LOWER(commodity) LIKE '%' || @cleanTerm || '%' OR @rawTerm LIKE '%' || LOWER(commodity) || '%')
+        AND state IN ('Chattisgarh', 'Chhattisgarh')
     )
     SELECT mp.*, c.name_en, c.name_hi, c.category, 'chhattisgarh' AS scope
     FROM mandi_prices mp
     JOIN latest l ON mp.arrival_date = l.max_date
     LEFT JOIN commodities c ON mp.commodity = c.name_api
-    WHERE mp.commodity = @commodity AND mp.state IN ('Chattisgarh', 'Chhattisgarh')
+    WHERE (mp.commodity = @commodity OR LOWER(mp.commodity) LIKE '%' || @cleanTerm || '%' OR @rawTerm LIKE '%' || LOWER(mp.commodity) || '%')
+      AND mp.state IN ('Chattisgarh', 'Chhattisgarh')
   `;
-  const paramsCG = { commodity: commodityApiName };
   if (marketFilter && !isDistrictFilter) {
     const specificCG = db.prepare(queryCG + ` AND LOWER(mp.market) LIKE '%' || @market || '%' ORDER BY mp.modal_price DESC LIMIT 5`)
-      .all({ ...paramsCG, market: marketFilter.toLowerCase() });
+      .all({ ...baseParams, market: marketFilter.toLowerCase() });
     if (specificCG.length > 0) return specificCG;
   }
   queryCG += ` ORDER BY mp.modal_price DESC LIMIT 5`;
-  const cgResults = db.prepare(queryCG).all(paramsCG);
+  const cgResults = db.prepare(queryCG).all(baseParams);
   if (cgResults.length > 0) return cgResults;
 
   // 3. Other states ordered by fixed neighbor list:
@@ -822,16 +827,17 @@ function getMandiPricesScoped(commodityApiName, marketFilter = null) {
     WITH latest AS (
       SELECT state, district, market, MAX(arrival_date) AS max_date
       FROM mandi_prices
-      WHERE commodity = @commodity AND state NOT IN ('Chattisgarh', 'Chhattisgarh')
+      WHERE (commodity = @commodity OR LOWER(commodity) LIKE '%' || @cleanTerm || '%' OR @rawTerm LIKE '%' || LOWER(commodity) || '%')
+        AND state NOT IN ('Chattisgarh', 'Chhattisgarh')
       GROUP BY state, district, market
     )
     SELECT mp.*, c.name_en, c.name_hi, c.category, 'other_state' AS scope
     FROM mandi_prices mp
     JOIN latest l ON mp.state = l.state AND mp.district = l.district AND mp.market = l.market AND mp.arrival_date = l.max_date
     LEFT JOIN commodities c ON mp.commodity = c.name_api
-    WHERE mp.commodity = @commodity AND mp.state NOT IN ('Chattisgarh', 'Chhattisgarh')
+    WHERE (mp.commodity = @commodity OR LOWER(mp.commodity) LIKE '%' || @cleanTerm || '%' OR @rawTerm LIKE '%' || LOWER(mp.commodity) || '%')
+      AND mp.state NOT IN ('Chattisgarh', 'Chhattisgarh')
   `;
-  const paramsOther = { commodity: commodityApiName };
   const orderOther = `
     ORDER BY
       CASE mp.state
@@ -849,10 +855,10 @@ function getMandiPricesScoped(commodityApiName, marketFilter = null) {
   `;
   if (marketFilter && !isDistrictFilter) {
     const specificOther = db.prepare(queryOther + ` AND LOWER(mp.market) LIKE '%' || @market || '%'` + orderOther)
-      .all({ ...paramsOther, market: marketFilter.toLowerCase() });
+      .all({ ...baseParams, market: marketFilter.toLowerCase() });
     if (specificOther.length > 0) return specificOther;
   }
-  return db.prepare(queryOther + orderOther).all(paramsOther);
+  return db.prepare(queryOther + orderOther).all(baseParams);
 }
 
 /**
@@ -860,18 +866,24 @@ function getMandiPricesScoped(commodityApiName, marketFilter = null) {
  */
 function compareMarketsScoped(commodityApiName) {
   const db = getDb();
+  const cleanTerm = (commodityApiName || '').replace(/\s*\([^)]*\)/g, '').trim().toLowerCase();
+  const rawTerm = (commodityApiName || '').toLowerCase();
+  const baseParams = { commodity: commodityApiName, cleanTerm, rawTerm };
+
   // Try Raipur first
   const raipur = db.prepare(`
     WITH latest AS (
       SELECT MAX(arrival_date) AS max_date
       FROM mandi_prices
-      WHERE commodity = @commodity AND district = 'Raipur'
+      WHERE (commodity = @commodity OR LOWER(commodity) LIKE '%' || @cleanTerm || '%' OR @rawTerm LIKE '%' || LOWER(commodity) || '%')
+        AND district = 'Raipur'
     )
     SELECT mp.market, mp.district, mp.state, mp.variety, mp.min_price, mp.max_price, mp.modal_price, mp.arrival_date, 'raipur' AS scope
     FROM mandi_prices mp, latest l
-    WHERE mp.commodity = @commodity AND mp.district = 'Raipur' AND mp.arrival_date = l.max_date
+    WHERE (mp.commodity = @commodity OR LOWER(mp.commodity) LIKE '%' || @cleanTerm || '%' OR @rawTerm LIKE '%' || LOWER(mp.commodity) || '%')
+      AND mp.district = 'Raipur' AND mp.arrival_date = l.max_date
     ORDER BY mp.modal_price DESC
-  `).all({ commodity: commodityApiName });
+  `).all(baseParams);
 
   if (raipur.length >= 2) return raipur;
 
@@ -880,14 +892,16 @@ function compareMarketsScoped(commodityApiName) {
     WITH latest AS (
       SELECT MAX(arrival_date) AS max_date
       FROM mandi_prices
-      WHERE commodity = @commodity AND state IN ('Chattisgarh', 'Chhattisgarh')
+      WHERE (commodity = @commodity OR LOWER(commodity) LIKE '%' || @cleanTerm || '%' OR @rawTerm LIKE '%' || LOWER(commodity) || '%')
+        AND state IN ('Chattisgarh', 'Chhattisgarh')
     )
     SELECT mp.market, mp.district, mp.state, mp.variety, mp.min_price, mp.max_price, mp.modal_price, mp.arrival_date,
       CASE WHEN mp.district = 'Raipur' THEN 'raipur' ELSE 'chhattisgarh' END AS scope
     FROM mandi_prices mp, latest l
-    WHERE mp.commodity = @commodity AND mp.state IN ('Chattisgarh', 'Chhattisgarh') AND mp.arrival_date = l.max_date
+    WHERE (mp.commodity = @commodity OR LOWER(mp.commodity) LIKE '%' || @cleanTerm || '%' OR @rawTerm LIKE '%' || LOWER(mp.commodity) || '%')
+      AND mp.state IN ('Chattisgarh', 'Chhattisgarh') AND mp.arrival_date = l.max_date
     ORDER BY mp.modal_price DESC LIMIT 10
-  `).all({ commodity: commodityApiName });
+  `).all(baseParams);
 
   if (cg.length > 0) return cg;
 
@@ -896,12 +910,14 @@ function compareMarketsScoped(commodityApiName) {
     WITH latest AS (
       SELECT state, district, market, MAX(arrival_date) AS max_date
       FROM mandi_prices
-      WHERE commodity = @commodity AND state NOT IN ('Chattisgarh', 'Chhattisgarh')
+      WHERE (commodity = @commodity OR LOWER(commodity) LIKE '%' || @cleanTerm || '%' OR @rawTerm LIKE '%' || LOWER(commodity) || '%')
+        AND state NOT IN ('Chattisgarh', 'Chhattisgarh')
       GROUP BY state, district, market
     )
     SELECT mp.market, mp.district, mp.state, mp.variety, mp.min_price, mp.max_price, mp.modal_price, mp.arrival_date, 'other_state' AS scope
     FROM mandi_prices mp, latest l
-    WHERE mp.commodity = @commodity AND mp.state NOT IN ('Chattisgarh', 'Chhattisgarh') AND mp.arrival_date = l.max_date
+    WHERE (mp.commodity = @commodity OR LOWER(mp.commodity) LIKE '%' || @cleanTerm || '%' OR @rawTerm LIKE '%' || LOWER(mp.commodity) || '%')
+      AND mp.state NOT IN ('Chattisgarh', 'Chhattisgarh') AND mp.arrival_date = l.max_date
     ORDER BY
       CASE mp.state
         WHEN 'Madhya Pradesh' THEN 1
@@ -915,7 +931,7 @@ function compareMarketsScoped(commodityApiName) {
       END ASC,
       mp.modal_price DESC
     LIMIT 10
-  `).all({ commodity: commodityApiName });
+  `).all(baseParams);
 }
 
 /**
@@ -999,7 +1015,7 @@ function getDistinctCommodities(district = 'Raipur') {
     SELECT DISTINCT mp.commodity, c.name_en, c.name_hi, c.category
     FROM mandi_prices mp
     LEFT JOIN commodities c ON mp.commodity = c.name_api
-    WHERE mp.district = @district
+    WHERE mp.district = @district COLLATE NOCASE
     ORDER BY COALESCE(c.name_en, mp.commodity)
   `).all({ district });
 }
@@ -1007,7 +1023,7 @@ function getDistinctCommodities(district = 'Raipur') {
 function getDistinctMarkets(district = 'Raipur') {
   const db = getDb();
   return db.prepare(`
-    SELECT DISTINCT market FROM mandi_prices WHERE district = @district ORDER BY market
+    SELECT DISTINCT market FROM mandi_prices WHERE district = @district COLLATE NOCASE ORDER BY market
   `).all({ district });
 }
 
