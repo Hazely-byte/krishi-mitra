@@ -446,14 +446,22 @@ const wss = new WebSocket.Server({ noServer: true });
 server.on('upgrade', async (request, socket, head) => {
   try {
     const reqUrl = new URL(request.url, `http://${request.headers.host || 'localhost'}`);
-    if (reqUrl.pathname === '/live') {
-      const token = reqUrl.searchParams.get('token');
+    const pathname = (reqUrl.pathname || '').replace(/\/+$/, '') || '/';
+    if (pathname === '/live') {
+      // Extract token from query param (?token=), Authorization header, or sec-websocket-protocol
+      let token = reqUrl.searchParams.get('token');
+      if (!token && request.headers.authorization && request.headers.authorization.startsWith('Bearer ')) {
+        token = request.headers.authorization.slice(7);
+      }
+      if (!token && request.headers['sec-websocket-protocol']) {
+        token = request.headers['sec-websocket-protocol'];
+      }
+
       const authResult = await auth.verifyGoogleIdToken(token);
 
       if (!authResult.authorized) {
         console.warn(`[AUTH] unauthorized email attempted /live connection: ${authResult.email || 'unauthenticated'} (reason: ${authResult.reason})`);
-        socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\nContent-Type: text/plain\r\n\r\nUnauthorized\r\n');
-        socket.destroy();
+        socket.end('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\nContent-Type: text/plain\r\nContent-Length: 12\r\n\r\nUnauthorized');
         return;
       }
 

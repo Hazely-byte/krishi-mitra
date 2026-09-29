@@ -80,6 +80,7 @@
     activeAbortController = new AbortController();
     const clientId = getClientId();
 
+    try {
       const googleToken = localStorage.getItem('krishi_google_token') || '';
       const headers = {
         'Content-Type': 'application/json',
@@ -89,7 +90,8 @@
         headers['Authorization'] = 'Bearer ' + googleToken;
       }
 
-      const response = await fetch('/api/chat/stream', {
+      const streamUrl = googleToken ? `/api/chat/stream?token=${encodeURIComponent(googleToken)}` : '/api/chat/stream';
+      const response = await fetch(streamUrl, {
         method: 'POST',
         headers,
         body: JSON.stringify({

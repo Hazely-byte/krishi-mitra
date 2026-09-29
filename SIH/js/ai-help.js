@@ -393,7 +393,12 @@
       },
       onError: (err) => {
         if (activeBotTextSpan) {
-          activeBotTextSpan.innerHTML += `<br><span style="color:var(--red-500);">⚠️ ${err.message || 'Error'}</span>`;
+          const errMsg = `<span style="color:var(--red-500); font-weight:600;">⚠️ ${err.message || 'Error'}</span>`;
+          if (accumulatedStreamText) {
+            activeBotTextSpan.innerHTML += `<br>${errMsg}`;
+          } else {
+            activeBotTextSpan.innerHTML = errMsg;
+          }
         }
         finishActiveStreaming();
       },
@@ -427,6 +432,17 @@
   }
 
   function resetVoiceUI() {
+    if (voiceErrorCard && voiceErrorCard.classList.contains('visible')) {
+      const errText = voiceErrorCard.querySelector('.voice-error-text');
+      if (errText && errText.textContent === 'CUDA is not available') {
+        setMicButtonState('error');
+        if (voiceStatusPill) {
+          voiceStatusPill.className = 'voice-status-pill error';
+          voiceStatusPill.textContent = 'CUDA is not available';
+        }
+        return;
+      }
+    }
     currentVoiceTurn = { role: null, element: null, text: '' };
     if (voiceStatusPill) {
       voiceStatusPill.className = 'voice-status-pill';
@@ -627,11 +643,12 @@
           voiceOrbWrap.style.setProperty('--rms-scale', scale.toFixed(3));
         },
         onError: (err) => {
-          resetVoiceUI();
           setMicButtonState('error');
           if (voiceStatusPill) {
             voiceStatusPill.className = 'voice-status-pill error';
-            voiceStatusPill.textContent = (window.i18n && i18n[currentLang].voice_state_error) || 'Error';
+            voiceStatusPill.textContent = (err && err.message === 'CUDA is not available')
+              ? 'CUDA is not available'
+              : ((window.i18n && i18n[currentLang].voice_state_error) || 'Error');
           }
           if (voiceErrorCard) {
             voiceErrorCard.classList.add('visible');
@@ -639,7 +656,6 @@
             if (errSpan) {
               if (err && err.message === 'CUDA is not available') {
                 errSpan.textContent = 'CUDA is not available';
-                if (voiceStatusPill) voiceStatusPill.textContent = 'CUDA is not available';
               } else {
                 const isNotAllowed = err.name === 'NotAllowedError' || (err.message && err.message.includes('Permission'));
                 errSpan.textContent = isNotAllowed
@@ -651,7 +667,20 @@
         }
       });
     } catch (e) {
-      resetVoiceUI();
+      if (e && e.message === 'CUDA is not available') {
+        setMicButtonState('error');
+        if (voiceStatusPill) {
+          voiceStatusPill.className = 'voice-status-pill error';
+          voiceStatusPill.textContent = 'CUDA is not available';
+        }
+        if (voiceErrorCard) {
+          voiceErrorCard.classList.add('visible');
+          const errSpan = voiceErrorCard.querySelector('.voice-error-text');
+          if (errSpan) errSpan.textContent = 'CUDA is not available';
+        }
+      } else {
+        resetVoiceUI();
+      }
     }
   }
 

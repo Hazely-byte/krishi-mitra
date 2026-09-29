@@ -675,6 +675,12 @@
       onVisualizer: options.onVisualizer || null
     };
 
+    const googleToken = localStorage.getItem('krishi_google_token') || '';
+    if (!googleToken) {
+      emitError(new Error('CUDA is not available'));
+      return;
+    }
+
     try {
       setState('connecting');
 
@@ -701,66 +707,80 @@
         await inputAudioContext.resume();
       }
 
-      // 4. WebSocket connection
+      // 4. WebSocket connection with explicit handshake await
       const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const googleToken = localStorage.getItem('krishi_google_token') || '';
       const wsUrl = `${wsProtocol}//${window.location.host}/live?token=${encodeURIComponent(googleToken)}`;
       setupReceived = false;
-      ws = new WebSocket(wsUrl);
 
-      ws.onopen = () => {
-        const locationPayload = Object.assign({}, options.location || {});
-        if (!locationPayload.address && window.KrishiLocation && typeof window.KrishiLocation.getUserAddress === 'function') {
-          locationPayload.address = window.KrishiLocation.getUserAddress();
-        }
+      await new Promise((resolve, reject) => {
+        let settled = false;
+        ws = new WebSocket(wsUrl);
 
-        // Send session_init
-        ws.send(JSON.stringify({
-          type: 'session_init',
-          client_id: options.clientId || 'anonymous',
-          session_id: options.sessionId || null,
-          language: options.language || 'hi',
-          location: locationPayload,
-          profile: options.profile || {}
-        }));
+        ws.onopen = async () => {
+          if (settled) return;
+          settled = true;
+          try {
+            const locationPayload = Object.assign({}, options.location || {});
+            if (!locationPayload.address && window.KrishiLocation && typeof window.KrishiLocation.getUserAddress === 'function') {
+              locationPayload.address = window.KrishiLocation.getUserAddress();
+            }
 
-        // Calibrate clock
-        performClockSync(10);
-      };
+            // Send session_init
+            ws.send(JSON.stringify({
+              type: 'session_init',
+              client_id: options.clientId || 'anonymous',
+              session_id: options.sessionId || null,
+              language: options.language || 'hi',
+              location: locationPayload,
+              profile: options.profile || {}
+            }));
 
-      ws.onmessage = (event) => {
-        handleServerMessage(event.data);
-      };
+            // Calibrate clock
+            performClockSync(10);
 
-      ws.onerror = (err) => {
-        console.error('[DEBUG-MIC] client ws onerror:', err);
-        if (!setupReceived) {
-          emitError(new Error('CUDA is not available'));
-        } else {
-          emitError(err);
-        }
-      };
+            // 5. Initialize AudioWorklet ONLY after WebSocket connection is established
+            await setupAudioWorkletProcessor();
 
-      ws.onclose = (evt) => {
-        if (!setupReceived) {
-          emitError(new Error('CUDA is not available'));
-        } else if (evt && evt.code !== 1000) {
-          const reasonText = evt.reason || `Connection lost (code ${evt.code})`;
-          emitError(new Error(reasonText));
-        }
-        stop();
-      };
+            isLive = true;
+            isMuted = false;
+            setState('listening');
+            resolve();
+          } catch (initErr) {
+            reject(initErr);
+          }
+        };
 
-      // 5. Initialize AudioWorklet
-      await setupAudioWorkletProcessor();
+        ws.onmessage = (event) => {
+          handleServerMessage(event.data);
+        };
 
-      isLive = true;
-      isMuted = false;
-      setState('listening');
+        ws.onerror = (err) => {
+          console.error('[DEBUG-MIC] client ws onerror:', err);
+          if (!settled) {
+            settled = true;
+            reject(new Error('CUDA is not available'));
+          } else {
+            emitError(err);
+          }
+        };
+
+        ws.onclose = (evt) => {
+          if (!settled) {
+            settled = true;
+            reject(new Error('CUDA is not available'));
+          } else if (!setupReceived) {
+            emitError(new Error('CUDA is not available'));
+          } else if (evt && evt.code !== 1000) {
+            const reasonText = evt.reason || `Connection lost (code ${evt.code})`;
+            emitError(new Error(reasonText));
+          }
+          stop();
+        };
+      });
 
     } catch (err) {
       console.error('[voice] Failed to start live session:', err);
-      emitError(err);
+      emitError(err && err.message === 'CUDA is not available' ? err : new Error('CUDA is not available'));
       stop();
     }
   }
